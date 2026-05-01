@@ -135,7 +135,6 @@ class Reader:
         return out
 
     def read_7bit_int(self) -> int:
-        """Read .NET BinaryReader 7-bit encoded int."""
         value = 0
         shift = 0
         for _ in range(5):
@@ -146,7 +145,7 @@ class Reader:
             shift += 7
         raise ParseError("invalid 7-bit int")
 
-    def read_dotnet_string(self) -> str:
+    def read_string(self) -> str:
         length = self.read_7bit_int()
         raw = self.read_bytes(length)
         try:
@@ -177,7 +176,7 @@ NESTED_OP_ARGC = {
     111: 1,  # SetFontId
 }
 
-# OutputLine opcode differs across some chapters/builds
+# OutputLine opcode differs across some chapters
 OUTPUTLINE_OPS = {16, 17}
 
 
@@ -192,7 +191,7 @@ def _read_reference(r: Reader) -> dict:
     if t != TYPE_VARIABLE:
         raise ParseError(f"reference must start with TYPE_VARIABLE, got {t}")
 
-    prop = r.read_dotnet_string()
+    prop = r.read_string()
     member = _read_value(r)
     has_ref = r.read_bool()
     sub_ref = _read_reference(r) if has_ref else None
@@ -207,7 +206,7 @@ def _read_value(r: Reader) -> Any:
     if t == TYPE_INT:
         return r.read_i32()
     if t == TYPE_STRING:
-        return r.read_dotnet_string()
+        return r.read_string()
     if t == TYPE_BOOL:
         return r.read_bool()
 
@@ -249,7 +248,7 @@ def _read_mg_data_segment(file_bytes: bytes) -> bytes:
     data_len = r.read_i32()
 
     for _ in range(block_count):
-        _ = r.read_dotnet_string()
+        _ = r.read_string()
         _ = r.read_i32()
 
     for _ in range(line_count):
