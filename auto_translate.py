@@ -46,7 +46,7 @@ ANNOT_RE = re.compile(r"@[a-zA-Z0-9_/.\|<>\[\]-]+")
 
 def strip_punct(text: str) -> str:
     """去掉标点符号（仅用于匹配时忽略标点差异）"""
-    return re.sub(r'[！？!?。、，「」""『』（）\(\)　\t\n\r・…—…ー〜～·･]', '', text)
+    return re.sub(r'[！？!?。、，「」""『』（）\(\)　\t\n\r・…—…〜～·･]', '', text)
 
 
 def convert_outer_quotes(text: str) -> str:
