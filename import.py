@@ -81,7 +81,8 @@ def main():
             continue
 
         if index in trans_map:
-            row["translated"] = trans_map[index]
+            if row.get("s") != trans_map[index]:
+                row["translated"] = trans_map[index]
             matched += 1
             del trans_map[index]  # 标记为已使用
 
