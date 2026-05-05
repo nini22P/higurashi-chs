@@ -33,7 +33,7 @@ if hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8')
 
 EXTRACTED = "extract/extracted.txt"
-TRANS_CSVS = ["translate_cn/ep01.csv", "translate_cn/ep08.csv", "translate_cn/ep09.csv", "translate_cn/ep10.csv"]
+TRANS_CSVS = [f"translate_cn/ep{i:02d}.csv" for i in range(1, 11)]
 OUTPUT = "extract/extracted-translated.txt"
 SEPARATOR = "------"
 FUZZY_THRESHOLD = 0.7
@@ -220,6 +220,10 @@ def verify_match(orig_key: str, dial_key: str) -> tuple[bool, float]:
         # 长度差异大的模糊匹配（如 遊びに行く 匹配 遊びに行ってくるね）容易误匹配，
         # SequenceMatcher 会跳过中间字符给出虚高分数，需更高阈值
         min_score = 0.8 if short_len / long_len < 0.6 else FUZZY_THRESHOLD
+        # 近等长字符串（长度比 >= 0.9）：单个假名差异（如 おっかしいぃ vs おっかしいな）
+        # 就能被 SequenceMatcher 以长公共前缀给出虚高分数，需更高阈值
+        if short_len / long_len >= 0.9:
+            min_score = max(min_score, 0.85)
         if score >= min_score:
             return True, score
     return False, 0.0
@@ -264,7 +268,7 @@ def main():
 
     for ei, (orig, _) in enumerate(entries):
         orig_key = strip_all(orig)
-        if not orig_key or len(orig_key) < 2:
+        if not orig_key:
             continue
 
         # ── 短条目（< 8 字）精确匹配（绕过4-gram投票避免500上限截断）──
@@ -342,7 +346,7 @@ def main():
         # 只对未匹配条目做合并匹配
         for ei in unmatched:
             orig_key = strip_all(entries[ei][0])
-            if not orig_key or len(orig_key) < 2:
+            if not orig_key:
                 continue
 
             if len(orig_key) < 8:
@@ -564,6 +568,57 @@ def main():
     if dialogue_lines:
         print(f"  对话行 (@r): {translated_dialogue_lines} / {dialogue_lines} ({translated_dialogue_lines/dialogue_lines*100:.1f}%)")
     print(f"  输出文件: {OUTPUT}")
+
+    # ── 对比分析 ──
+    compare_with_original()
+
+
+def compare_with_original():
+    """
+    逐行对比 extracted.txt 与 extracted-translated.txt：
+    - 相同行（未翻译）→ extract/untranslated.txt
+    - 不同且翻译后仍含日文 → extract/has_japanese.txt
+    格式: 同 extracted-translated.txt 的 行号------内容
+    """
+    # 只检测日文独有的假名（平假名/片假名），不包含中日共享汉字
+    JAPANESE_RE = re.compile(r'[ぁ-ゖゝゞゟァ-ヺーヽヾヿ]')
+
+    with open(EXTRACTED, "r", encoding="utf-8") as f:
+        orig_lines = [line.rstrip("\n") for line in f if line.strip()]
+    with open(OUTPUT, "r", encoding="utf-8") as f:
+        trans_lines = [line.rstrip("\n") for line in f if line.strip()]
+
+    unchanged = []
+    has_japanese = []
+
+    min_lines = min(len(orig_lines), len(trans_lines))
+    for i in range(min_lines):
+        # 提取行号（------ 前的数字）
+        orig_idx = orig_lines[i].split(SEPARATOR, 1)[0].strip() if SEPARATOR in orig_lines[i] else str(i)
+        orig_content = orig_lines[i].split(SEPARATOR, 1)[-1] if SEPARATOR in orig_lines[i] else orig_lines[i]
+        trans_content = trans_lines[i].split(SEPARATOR, 1)[-1] if SEPARATOR in trans_lines[i] else trans_lines[i]
+
+        if orig_content == trans_content:
+            unchanged.append(f"{orig_idx}{SEPARATOR}{orig_content}")
+        elif JAPANESE_RE.search(trans_content):
+            has_japanese.append(f"{orig_idx}{SEPARATOR}{trans_content}")
+
+    os.makedirs("extract", exist_ok=True)
+
+    with open("extract/untranslated.txt", "w", encoding="utf-8") as f:
+        for line in unchanged:
+            f.write(line + "\n")
+
+    with open("extract/has_japanese.txt", "w", encoding="utf-8") as f:
+        for line in has_japanese:
+            f.write(line + "\n")
+
+    print(f"\n=== 逐行对比分析 ===")
+    print(f"  总行数: {min_lines}")
+    print(f"  未翻译行（原文==译文）: {len(unchanged)}")
+    print(f"  翻译后仍含日文: {len(has_japanese)}")
+    print(f"  输出: extract/untranslated.txt")
+    print(f"  输出: extract/has_japanese.txt")
 
 
 if __name__ == "__main__":
