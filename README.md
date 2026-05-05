@@ -1,14 +1,9 @@
 # higurashi-hou-chs
 
-## Language
+<details>
+<summary><b>English</b></summary>
 
-- [English](#english)
-- [中文](#中文)
-
-
-### English
-
-#### how to translate
+#### How to translate
 
 1. Create a folder named `translate_cn` and place the translation files in the format `ep*.csv`, requiring at least an original column (`original`) and a translation column (`translation`).
 
@@ -20,13 +15,12 @@
 
 1. Create a `raw` folder and place the game files for version 2.0.2 inside it, including `data.rom`, `patch.rom`, and `append.rom`.
 
-
 2. Run `python pack.py` in the terminal. On Windows you can also double-click `pack.bat`.
 
-### 中文
+</details>
 
-// Your Chinese content here
-
+<details>
+<summary><b>中文</b></summary>
 
 #### 如何翻译
 
@@ -38,10 +32,11 @@
 
 #### 如何打包
 
-1. 创建一个 `raw` 文件夹，并将 2.0.2 版本的游戏文件放入其中，包括 `data.rom`、`patch.rom` 和 `append.rom。`
+1. 创建一个 `raw` 文件夹，并将 2.0.2 版本的游戏文件放入其中，包括 `data.rom`、`patch.rom` 和 `append.rom`。
 
 2. 在终端中运行 python `pack.py`。在 Windows 上，也可以双击 `pack.bat`。
 
+</details>
 
 ## Credits
 
