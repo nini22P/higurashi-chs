@@ -1,7 +1,14 @@
 # higurashi-hou-chs
 
-<details>
-<summary><b>English</b></summary>
+<div align="center">
+
+**English** | [中文](#中文)
+
+</div>
+
+---
+
+**English**
 
 #### How to translate
 
@@ -17,10 +24,15 @@
 
 2. Run `python pack.py` in the terminal. On Windows you can also double-click `pack.bat`.
 
-</details>
+---
 
-<details>
-<summary><b>中文</b></summary>
+<div align="center">
+
+[English](#english) | **中文**
+
+</div>
+
+**中文**
 
 #### 如何翻译
 
@@ -36,7 +48,7 @@
 
 2. 在终端中运行 python `pack.py`。在 Windows 上，也可以双击 `pack.bat`。
 
-</details>
+---
 
 ## Credits
 
