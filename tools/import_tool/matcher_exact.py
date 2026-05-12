@@ -1,4 +1,7 @@
-from import_tool.utils import normalize
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from utils import normalize
 
 _OVERRIDE_MARGIN = 2
 

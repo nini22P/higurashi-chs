@@ -1,10 +1,13 @@
 import argparse
 import pandas as pd
 import os
+import sys
 from collections import defaultdict
-from import_tool.utils import *
-from import_tool.matcher_exact import align_and_translate
-from import_tool.matcher_fuzzy import align_and_translate_fuzzy
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from utils import *
+from matcher_exact import align_and_translate
+from matcher_fuzzy import align_and_translate_fuzzy
 
 def main():
     parser = argparse.ArgumentParser()

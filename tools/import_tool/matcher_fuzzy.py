@@ -1,4 +1,7 @@
-from import_tool.utils import strip_all, has_japanese
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from utils import strip_all, has_japanese
 from rapidfuzz import fuzz as rapidfuzz_fuzz
 from collections import defaultdict
 
