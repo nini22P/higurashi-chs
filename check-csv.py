@@ -6,12 +6,9 @@ import os
 
 RUBY_REGEX = r'@b([^@.]+)\.@<([^@>]+)@>'
 CODE_REGEX = r'(@[abcosuvwxz][^@\n\r.]*\.|@[-+/<>[\]ekrty{|}]|@[a-zA-Z])'
-NAME_COL = "name"
-TRANSLATED_NAME_COL = "translated"
-
 CSV_CONFIGS = [
     {
-        "input": "higurashi-hou.csv",
+        "input": "main.csv",
         "original_cols": ["s"],
         "translation_cols": ["translated"],
     },
@@ -88,15 +85,17 @@ def get_name_and_segments(text):
     return name_seg, segments, parts
 
 
-def load_name_dict(path="name.csv"):
+def load_name_dict(path="higurashi-hou.csv"):
     if not os.path.exists(path):
         return {}
     name_dict = {}
     with open(path, "r", encoding="utf-8", newline="") as f:
         reader = csv.DictReader(f)
         for row in reader:
-            n = row.get(NAME_COL, "").strip()
-            t = row.get(TRANSLATED_NAME_COL, "").strip()
+            if row.get("type", "").strip() != "name":
+                continue
+            n = row.get("text", "").strip()
+            t = row.get("translated", "").strip()
             if n and t:
                 name_dict[n] = t
     return name_dict

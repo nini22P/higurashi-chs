@@ -7,8 +7,8 @@ ORIGINAL_FNT_PATH = "raw/data/newrodin.fnt"
 MAPPING_OUTPUT = "build/mapping.toml"
 CSV_CONFIGS = [
     {
-        "input": "higurashi-hou.csv",
-        "output": "build/higurashi-hou-mapped.csv",
+        "input": "main.csv",
+        "output": "build/main-mapped.csv",
         "original_cols": ["s"],
         "translation_cols": ["translated"],
     },
