@@ -57,21 +57,24 @@ def extract_texts(df_main):
         if segs:
             rows.append({
                 'index': row.get('index'),
-                'type': row.get('source'), 
+                'offset': row.get('offset'),
+                'type': row.get('source'),
                 'name': name, 
                 'text': SEP.join(segs), 
                 'translated': ""
             })
             
     name_rows = [{
-        'index': "", 
+        'index': "",
+        'offset': "",
         'type': "name", 
         'name': "", 
         'text': n, 
         'translated': ""
     } for n in sorted(names)]
     
-    return pd.DataFrame(name_rows + rows)
+    cols = ['index', 'offset', 'type', 'name', 'text', 'translated']
+    return pd.DataFrame(name_rows + rows)[cols]
 
 
 def inject_texts(df_main, df_text):
@@ -84,6 +87,7 @@ def inject_texts(df_main, df_text):
         txt = str(row.get('text', ''))
         trans = str(row.get('translated', ''))
         idx_val = str(row.get('index', '')).strip()
+        offset_val = str(row.get('offset', '')).strip()
         
         if row_type == 'name':
             if trans and trans != 'nan' and trans.strip(): 
@@ -99,23 +103,21 @@ def inject_texts(df_main, df_text):
             continue
         
         orig_segs = txt.split(SEP)
+        key = (idx_val, offset_val)
         
         if trans and trans != 'nan' and trans.strip():
             trans_segs = trans.split(SEP)
             if len(trans_segs) == len(orig_segs):
-                trans_dict[idx_val] = trans_segs
+                trans_dict[key] = trans_segs
             else:
-                errors.append(f"Row {i+2} (index {idx_val}): segment mismatch ({len(orig_segs)} vs {len(trans_segs)})")
+                errors.append(f"Row {i+2} (index {idx_val}, offset {offset_val}): segment mismatch ({len(orig_segs)} vs {len(trans_segs)})")
         else:
-            trans_dict[idx_val] = None
+            trans_dict[key] = None
 
     if errors:
         raise ValueError("Translation alignment errors:\n" + "\n".join(errors[:10]))
 
-    def process_row(row):
-        orig_text = str(row.get('s', ''))
-        idx_val = str(row.get('index', '')).strip()
-        
+    def process_row(orig_text, idx_val, offset_val):
         if not idx_val:
             return orig_text
             
@@ -124,13 +126,15 @@ def inject_texts(df_main, df_text):
         except ValueError:
             return orig_text
 
-        if idx not in trans_dict:
+        key = (idx, offset_val)
+
+        if key not in trans_dict:
             return ""
 
-        if trans_dict[idx] is None: 
+        if trans_dict[key] is None: 
             return ""
         
-        segs = trans_dict[idx]
+        segs = trans_dict[key]
         seg_idx = 0
         parts = re.split(CODE_REGEX, to_human(orig_text))
         result = []
@@ -167,7 +171,14 @@ def inject_texts(df_main, df_text):
         return "".join(result)
 
     df_out = df_main.copy()
-    df_out['translated'] = df_out.apply(process_row, axis=1)
+    translated = []
+    for row in df_main.itertuples(index=False):
+        translated.append(process_row(
+            str(row.s) if pd.notna(row.s) else '',
+            str(row.index) if pd.notna(row.index) else '',
+            str(row.offset) if pd.notna(row.offset) else '',
+        ))
+    df_out['translated'] = translated
     return df_out
 
 
