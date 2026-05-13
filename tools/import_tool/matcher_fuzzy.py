@@ -7,27 +7,23 @@ from collections import defaultdict
 
 
 def verify_match(a: str, b: str) -> float:
-    """验证两段文本是否模糊匹配，返回匹配分数（0 = 不匹配）"""
     if not a or not b:
         return 0.0
 
     la, lb = len(a), len(b)
     short, long = (a, b) if la < lb else (b, a)
 
-    # 长度比保护：差异超 3 倍直接拒绝
     if len(long) / max(len(short), 1) > 3:
         return 0.0
 
-    # 完全匹配
     if a == b:
         return 1.0
 
-    # 子串匹配
     if short in long:
         ratio = len(short) / len(long)
         is_prefix = long.startswith(short)
         if len(short) >= 3:
-            min_ratio = 0.5 if is_prefix else 0.3
+            min_ratio = 0.4 if is_prefix else 0.25
             if ratio >= min_ratio:
                 return 0.9
         if len(short) == 2:
@@ -35,7 +31,6 @@ def verify_match(a: str, b: str) -> float:
             if ratio >= min_ratio:
                 return 0.85
 
-    # 模糊匹配（SequenceMatcher）
     if la > 3 and lb > 3:
         short_len = min(la, lb)
         long_len = max(la, lb)
@@ -43,14 +38,11 @@ def verify_match(a: str, b: str) -> float:
 
         sim = rapidfuzz_fuzz.ratio(a, b) / 100.0
 
-        # 长度差异大时需要更高阈值
         if len_ratio < 0.6:
-            return sim if sim >= 0.8 else 0.0
-        # 近等长时单字差异容易虚高，也需更高阈值
+            return sim if sim >= 0.7 else 0.0
         if len_ratio >= 0.9:
-            return sim if sim >= 0.85 else 0.0
-        # 一般情况
-        return sim if sim >= 0.7 else 0.0
+            return sim if sim >= 0.75 else 0.0
+        return sim if sim >= 0.6 else 0.0
 
     return 0.0
 
@@ -137,10 +129,10 @@ def find_candidates(text, gram_index, short_index, all_entries, max_candidates=2
     return sorted(seen.items(), key=lambda x: -x[1])
 
 
-_CONCAT_FALLBACK_MAX_SCORE = 0.95  # verify_match 中真正"高置信"只有 1.0；0.9 仅表示部分子串
-_CONCAT_MIN_COVERAGE = 0.85
-_CONCAT_MIN_SPAN_LEN = 4
-_CONCAT_PARTIAL_MIN = 90.0  # rapidfuzz 0-100；按 1-d/k 推导：4-9 字必须完全相同，10+ 字至多 1 字差
+_CONCAT_FALLBACK_MAX_SCORE = 0.95
+_CONCAT_MIN_COVERAGE = 0.70
+_CONCAT_MIN_SPAN_LEN = 3
+_CONCAT_PARTIAL_MIN = 80.0
 
 
 def _try_concat_cover(matched_stripped, candidates, all_entries):
@@ -206,12 +198,7 @@ def _try_concat_cover(matched_stripped, candidates, all_entries):
     return "".join("".join(tz) for _, _, tz in chosen)
 
 
-def align_and_translate_fuzzy(orig_segs, index, window=6, _cache={}):
-    """
-    模糊匹配翻译。对每个未翻译段，在滑动窗口内拼接候选，
-    用 n-gram 倒排索引快速查找匹配的翻译条目，选最优匹配。
-    """
-    # 延迟构建索引，只建一次（利用 mutable default arg 缓存）
+def align_and_translate_fuzzy(orig_segs, index, window=8, max_span=4, max_candidates=300, _cache={}):
     cache_key = id(index)
     if cache_key not in _cache:
         _cache[cache_key] = build_fuzzy_index(index)
@@ -229,13 +216,11 @@ def align_and_translate_fuzzy(orig_segs, index, window=6, _cache={}):
             i += 1
             continue
 
-        # 阶段1：在窗口内找最佳原文对齐位置
         best_align = None
         best_align_score = 0
 
         for j in range(i, min(i + window, n)):
-            # 尝试拼接 1/2/3 个连续段
-            for span in range(1, min(4, n - j + 1)):
+            for span in range(1, min(max_span + 1, n - j + 1)):
                 cand = "".join(src[j:j + span])
                 if not cand:
                     continue
@@ -251,7 +236,7 @@ def align_and_translate_fuzzy(orig_segs, index, window=6, _cache={}):
         align_idx, align_span, matched = best_align
 
         # 阶段2：用 n-gram 索引快速查找匹配翻译
-        candidates = find_candidates(matched, gram_index, short_index, all_entries)
+        candidates = find_candidates(matched, gram_index, short_index, all_entries, max_candidates)
 
         best_entry = None
         best_score = 0
