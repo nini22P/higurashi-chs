@@ -26,7 +26,7 @@ import os
 import re
 import sys
 from difflib import SequenceMatcher
-from collections import defaultdict, deque, Counter
+from collections import defaultdict
 
 # 确保 stdout 支持 UTF-8（Windows GBK 兼容）
 if hasattr(sys.stdout, 'reconfigure'):
@@ -38,13 +38,111 @@ HIGU_CSV = "higurashi-hou.csv"
 OUTPUT_CSV = "higurashi-hou-translated.csv"
 SEPARATOR = "------"
 FUZZY_THRESHOLD = 0.7
-CONTEXT_WINDOW = 3           # 行级上下文窗口：平局时参考前 N 行的选中条目
 
 # 匹配所有 @annotation: 只允许游戏实际使用的标注字符（字母、数字、标点符号等）
 # 明确列出允许字符而非反向排除，避免误吞引号等非日文字符
-ANNOT_RE = re.compile(r"@[a-zA-Z0-9_/.\|<>\[\]-]+")
+# @<…@> 和 @c$f22 作为整体标注（ruby 注音 / 字体大小）
+ANNOT_RE = re.compile(r"@<[^@]*@>|@[a-zA-Z0-9_/.\|<>\[\]\$-]+")
 # 只检测日文独有的假名（平假名/片假名），不包含中日共享汉字
 JAPANESE_RE = re.compile(r'[ぁ-ゖゝゞゟァ-ヺーヽヾヿ]')
+
+# 匹配 ruby 注音 @b注音.@<文本@> → 提取 @<…@> 内的实际文本
+RUBY_RE = re.compile(r'@b([^@.]+)\.@<([^@>]+)@>')
+
+# script-tool 的注解分割正则（参数型注解以 . 结尾，单字符注解）
+CODE_REGEX = re.compile(r'(@[abcosuvwxz][^@\n\r.]*\.|@[-+/<>[\]ekrty{|}]|@[a-zA-Z])')
+
+
+def strip_ruby(text: str) -> str:
+    """将 @b注音.@<文本@> 替换为 文本，移除 ruby 注音保留实际文字。"""
+    return RUBY_RE.sub(r'\2', text)
+
+
+def to_human(text: str) -> str:
+    """将 @b注音.@<文本@> 转换为 [注音|文本]（script-tool 兼容）。"""
+    return RUBY_RE.sub(r'[\1|\2]', text)
+
+
+def get_dialogue_units(content: str) -> list[str]:
+    """仿 script-tool.get_segments：提取对话片段。
+
+    按 CODE_REGEX 分割，跳过 @r 前角色名（如有），
+    收集纯对话文本（不含 @annotation）。
+    """
+    parts = re.split(CODE_REGEX, content)
+    # 找到 @r 位置，其前为角色名
+    first_r = content.find('@r')
+    if first_r >= 0:
+        for i, p in enumerate(parts):
+            if p == '@r':
+                start = i + 1
+                break
+        else:
+            start = 0
+    else:
+        start = 0
+
+    segs = []
+    for p in parts[start:]:
+        if not p:
+            continue
+        if not re.match(CODE_REGEX, p) and p.strip():
+            segs.append(p.strip())
+    return segs
+
+
+def split_by_annotations(content: str) -> list[str]:
+    """
+    按 CODE_REGEX 分割，将注解与后续对话配对为片段（script-tool 兼容）。
+    角色名前缀（第一个 @r 之前）归入第一个分段。
+    连续注解（如 @k@r）会被合并到同一片段前缀。
+    """
+    first_r = content.find('@r')
+    name_prefix = content[:first_r] if first_r >= 0 else ''
+    rest = content[first_r:] if first_r >= 0 else content
+
+    parts = re.split(CODE_REGEX, rest)
+    segments = []
+    pending_codes = ''
+    is_first = True
+
+    # parts[0] = 第一个注解前的文本
+    if parts[0].strip():
+        seg = parts[0]
+        if is_first and name_prefix:
+            seg = name_prefix + seg
+            is_first = False
+        segments.append(seg)
+
+    # 交替遍历 (code, non-code) 对
+    i = 1
+    while i < len(parts) - 1:
+        code = parts[i]
+        non_code = parts[i + 1]
+
+        pending_codes += code
+
+        if non_code.strip():
+            seg = pending_codes + non_code
+            if is_first and name_prefix:
+                seg = name_prefix + seg
+                is_first = False
+            segments.append(seg)
+            pending_codes = ''
+
+        i += 2
+
+    # 末尾残留的注解
+    if pending_codes:
+        if is_first and name_prefix:
+            pending_codes = name_prefix + pending_codes
+        segments.append(pending_codes)
+
+    # 纯文字行（无 annotation）
+    if not segments and content.strip():
+        segments.append(content)
+
+    return segments
 
 
 def strip_punct(text: str) -> str:
@@ -96,55 +194,6 @@ def extract_dialogue(segment: str) -> str:
     return ANNOT_RE.sub("", after_name).strip()
 
 
-def split_by_annotations(content: str) -> list[str]:
-    """
-    按所有 @annotation 边界分段（不只是 @k）。
-
-    每个分段自包含其前导注解，可直接用于 reconstruct_segment。
-    角色名前缀（第一个 @r 之前）归入第一个分段。
-    """
-    first_r = content.find('@r')
-    if first_r >= 0:
-        name_prefix = content[:first_r]
-        rest = content[first_r:]
-    else:
-        name_prefix = ''
-        rest = content
-
-    segments = []
-    last_end = 0
-    pending_annot = ''
-    is_first = True
-
-    for m in ANNOT_RE.finditer(rest):
-        if m.start() > last_end:
-            dialogue = rest[last_end:m.start()]
-            seg_raw = pending_annot + dialogue
-            if seg_raw.strip():
-                if is_first and name_prefix:
-                    seg_raw = name_prefix + seg_raw
-                    is_first = False
-                segments.append(seg_raw)
-                is_first = False
-            pending_annot = ''
-        pending_annot += m.group()
-        last_end = m.end()
-
-    if last_end < len(rest):
-        dialogue = rest[last_end:]
-        seg_raw = pending_annot + dialogue
-        if seg_raw.strip():
-            if is_first and name_prefix:
-                seg_raw = name_prefix + seg_raw
-            segments.append(seg_raw)
-
-    # 没有任何 annotation 的纯文字行
-    if not segments and content.strip():
-        segments.append(content)
-
-    return segments
-
-
 def reconstruct_segment(segment: str, translations: list[str],
                         name_map: dict[str, str] = None) -> str:
     """
@@ -188,8 +237,12 @@ def reconstruct_segment(segment: str, translations: list[str],
                 inserted = True
         parts.append(after_name[s:e])
         prev = e
-    if prev < len(after_name) and not inserted:
-        parts.append(combined)
+    if prev < len(after_name):
+        if not inserted:
+            parts.append(combined)
+        else:
+            # 已有翻译插入（多块标注），保留后续未匹配的原文
+            parts.append(after_name[prev:])
     return "".join(parts)
 
 
@@ -221,8 +274,8 @@ def load_name_map(path: str) -> dict[str, str]:
 
 def build_segments(lines: list[str]) -> list[tuple[int, int, str]]:
     """
-    解析 extracted.txt，按 annotation 边界拆分，提取每段对话文本。
-    返回: [(line_idx, seg_idx_in_line, dialogue_text)]
+    解析 extracted.txt，用 script-tool 方式提取对话片段。
+    返回: [(line_idx, unit_idx_in_line, dialogue_text)]
     """
     total = len(lines)
     print(f"  解析 {total} 行...", flush=True)
@@ -234,84 +287,143 @@ def build_segments(lines: list[str]) -> list[tuple[int, int, str]]:
         if sp < 0:
             continue
         content = line[sp + len(SEPARATOR):].strip()
-        for seg_idx, seg in enumerate(split_by_annotations(content)):
-            dialogue = extract_dialogue(seg)
-            if dialogue:  # 跳过空段
-                segments.append((line_idx, seg_idx, dialogue))
+        # 去掉 ruby 后用 get_dialogue_units 分段（脚本工具方式）
+        units = get_dialogue_units(strip_ruby(content))
+        for unit_idx, dialogue in enumerate(units):
+            if dialogue:
+                segments.append((line_idx, unit_idx, dialogue))
     return segments
 
 
-def build_gram_index(segments: list) -> dict[str, list[int]]:
+def build_lookup(entries: list) -> tuple[dict, dict, list]:
+    """构建轻量级查找结构：精确匹配字典 + 前缀索引 + 短文本索引。
+
+    Returns:
+        exact_dict: {cleaned_text: entry_idx}
+        prefix_dict: {6_char_prefix: [(entry_idx, cleaned_text)]}
+        short_idx: {cleaned_text: [entry_idx]} for texts < 8 chars
     """
-    对对话文本建立 4-gram 倒排索引。
-    短对话（< 4 字）直接用全文建索引。
-    同一片段内相同 gram 只计一次，避免重复计数扭曲投票结果。
-    """
-    total = len(segments)
-    print(f"  构建 4-gram 索引（共 {total} 片段）...", flush=True)
-    idx = defaultdict(list)
-    for seg_idx, (_, _, dialogue) in enumerate(segments):
-        if seg_idx > 0 and seg_idx % 100000 == 0:
-            print(f"    索引进度: {seg_idx}/{total}", flush=True)
-        key = strip_all(dialogue)
+    exact_dict: dict[str, int] = {}
+    prefix_dict: dict[str, list[tuple[int, str]]] = defaultdict(list)
+    short_idx: dict[str, list[int]] = defaultdict(list)
+
+    for ei, (orig, _) in enumerate(entries):
+        key = strip_all(orig)
         if not key:
             continue
-        if len(key) >= 4:
-            seen = set()
-            for pos in range(0, len(key) - 3, 2):
-                gram = key[pos:pos+4]
-                if gram not in seen:
-                    idx[gram].append(seg_idx)
-                    seen.add(gram)
-        else:
-            idx[key].append(seg_idx)
-    print(f"    索引完成: {len(idx)} 个唯一 gram")
-    return idx
+        exact_dict[key] = ei
+        if len(key) < 8:
+            short_idx[key].append(ei)
+        prefix_dict[key[:6]].append((ei, key))
+
+    return exact_dict, prefix_dict, short_idx
 
 
-def verify_match(orig_key: str, dial_key: str) -> tuple[bool, float]:
-    """验证翻译条目是否匹配片段对话。返回 (是否匹配, 分数)"""
-    if not orig_key or not dial_key:
-        return False, 0.0
+def match_segments(entries: list, segments: list,
+                   label: str = "", do_combined: bool = True) -> tuple:
+    """
+    轻量匹配：精确匹配 → 前缀子串匹配 → 模糊匹配（长文本）。
+    不用 4-gram 索引，内存占用低。
+    """
+    if label:
+        print(f"\n--- 匹配{label} ---")
 
-    # 子串匹配：适用于因标点/注释差异导致的局部匹配
-    shorter, longer = (orig_key, dial_key) if len(orig_key) <= len(dial_key) else (dial_key, orig_key)
-    if shorter in longer:
-        if shorter == longer:
-            return True, 1.0  # 完全一致，优先选用
-        shorter_len = len(shorter)
-        is_prefix = longer.startswith(shorter)
-        if shorter_len >= 3:
-            ratio = shorter_len / max(len(longer), 1)
-            # 前缀子串（如 遊びに行く 匹配 遊びに行ってくるね）容易误匹配动词词干，需更高覆盖度
-            min_ratio = 0.6 if is_prefix else 0.3
-            if ratio >= min_ratio:
-                return True, 0.9  # 子串匹配，分数略低于完全匹配
-        # 2 字子串匹配：要求覆盖较长文本至少 50%，前缀匹配需 60%
-        if shorter_len == 2:
-            ratio = shorter_len / max(len(longer), 1)
-            min_ratio = 0.6 if is_prefix else 0.5
-            if ratio >= min_ratio:
-                return True, 0.85
-        # 比例不足阈值 → 降级到模糊匹配
+    exact_dict, prefix_dict, short_idx = build_lookup(entries)
+    seg_matches: dict[int, list[int]] = defaultdict(list)
 
-    if len(orig_key) > 3 and len(dial_key) > 3:
-        # 长度比保护：模糊匹配时双方向长度差异不超 3 倍
-        short_len = min(len(orig_key), len(dial_key))
-        long_len = max(len(orig_key), len(dial_key))
-        if long_len / short_len > 3:
-            return False, 0.0
-        score = SequenceMatcher(None, orig_key, dial_key).ratio()
-        # 长度差异大的模糊匹配（如 遊びに行く 匹配 遊びに行ってくるね）容易误匹配，
-        # SequenceMatcher 会跳过中间字符给出虚高分数，需更高阈值
-        min_score = 0.8 if short_len / long_len < 0.6 else FUZZY_THRESHOLD
-        # 近等长字符串（长度比 >= 0.9）：单个假名差异（如 おっかしいぃ vs おっかしいな）
-        # 就能被 SequenceMatcher 以长公共前缀给出虚高分数，需更高阈值
-        if short_len / long_len >= 0.9:
-            min_score = max(min_score, 0.85)
-        if score >= min_score:
-            return True, score
-    return False, 0.0
+    for seg_idx, (_, _, dialogue) in enumerate(segments):
+        dial_key = strip_all(dialogue)
+        if not dial_key:
+            continue
+
+        # 1. Exact match
+        if dial_key in exact_dict:
+            seg_matches[seg_idx].append(exact_dict[dial_key])
+            continue
+
+        # 2. Short text exact via short_idx
+        if len(dial_key) < 8:
+            for ei in short_idx.get(dial_key, []):
+                seg_matches[seg_idx].append(ei)
+            if seg_matches[seg_idx]:
+                continue
+
+        # 3. Sliding prefix substring match
+        found = False
+        max_start = max(1, len(dial_key) - 5)
+        for start in range(max_start):
+            sub = dial_key[start:start + 6]
+            if sub in prefix_dict:
+                for ei, orig_key in prefix_dict[sub]:
+                    if len(orig_key) >= 2 and len(dial_key) >= 2:
+                        if orig_key in dial_key or dial_key in orig_key:
+                            seg_matches[seg_idx].append(ei)
+                            found = True
+                            break
+                if found:
+                    break
+
+        # 4. Fuzzy match for longer texts
+        if not found and len(dial_key) >= 8:
+            best_ei = None
+            best_score = 0.0
+            first_char = dial_key[0]
+            for ei, orig_key in prefix_dict.get(first_char, []):
+                if len(orig_key) < 4 or len(dial_key) < 4:
+                    continue
+                short_len = min(len(orig_key), len(dial_key))
+                long_len = max(len(orig_key), len(dial_key))
+                if long_len / short_len > 3:
+                    continue
+                score = SequenceMatcher(None, orig_key, dial_key).ratio()
+                if score > best_score and score >= FUZZY_THRESHOLD:
+                    best_score = score
+                    best_ei = ei
+            if best_ei is not None:
+                seg_matches[seg_idx].append(best_ei)
+
+    # Stats
+    matched_set: set[int] = set()
+    for idxs in seg_matches.values():
+        matched_set.update(idxs)
+    pct = len(matched_set) / len(entries) * 100 if entries else 0
+    print(f"  {label}已匹配: {len(matched_set)}/{len(entries)} ({pct:.1f}%)")
+
+    # Simple combined matching (adjacent units on same line)
+    combined_final: dict[tuple[int, int], tuple[int, str]] = {}
+    if do_combined and len(segments) > 1:
+        combined_pairs = []
+        for i in range(len(segments) - 1):
+            l1, s1, d1 = segments[i]
+            l2, s2, d2 = segments[i + 1]
+            if l1 == l2 and s1 + 1 == s2 and i not in seg_matches and (i + 1) not in seg_matches:
+                combined_pairs.append((l1, s1, d1 + d2))
+
+        if combined_pairs:
+            if label:
+                print(f"  {label}尝试合并匹配 ({len(combined_pairs)} 组)...")
+            for cs_idx, (l, s, combined_dialogue) in enumerate(combined_pairs):
+                dial_key = strip_all(combined_dialogue)
+                if dial_key in exact_dict:
+                    ei = exact_dict[dial_key]
+                    combined_final[(l, s)] = (ei, convert_outer_quotes(entries[ei][1]))
+                    matched_set.add(ei)
+                else:
+                    for start in range(max(1, len(dial_key) - 5)):
+                        sub = dial_key[start:start + 6]
+                        if sub in prefix_dict:
+                            for ei, orig_key in prefix_dict[sub]:
+                                if len(orig_key) >= 3 and (orig_key in dial_key or dial_key in orig_key):
+                                    combined_final[(l, s)] = (ei, convert_outer_quotes(entries[ei][1]))
+                                    matched_set.add(ei)
+                                    break
+                            break
+
+        if label and combined_pairs:
+            print(f"  {label}合并匹配新增: {len(combined_final)} 组")
+
+    print(f"  累计条目匹配: {len(matched_set)}/{len(entries)} ({len(matched_set)/len(entries)*100:.1f}%)")
+    return seg_matches, combined_final, matched_set
 
 
 def build_fulltext_segments(lines: list[str]) -> list[tuple[int, int, str]]:
@@ -326,168 +438,11 @@ def build_fulltext_segments(lines: list[str]) -> list[tuple[int, int, str]]:
         if sp < 0:
             continue
         content = line[sp + len(SEPARATOR):].strip()
+        content = strip_ruby(content)
         dialogue = extract_dialogue(content)
         if dialogue:
             segments.append((line_idx, 0, dialogue))
     return segments
-
-
-def match_segments(entries: list, segments: list,
-                   label: str = "", do_combined: bool = True) -> tuple:
-    """
-    对 segment 集合运行完整匹配管道（4-gram + 短文本精确 + 跨段合并）。
-
-    Returns:
-        seg_matches:   dict[int, list[int]]  segment_idx → [entry_idx, ...]
-        combined_final: dict[tuple[int,int], tuple[int,str]]
-        matched_set:   set[int]
-    """
-    if label:
-        print(f"\n--- 匹配{label} ---")
-
-    # ── 4-gram 倒排索引 ──
-    gram_index = build_gram_index(segments)
-
-    # ── 短对话精确索引（len < 8）──
-    short_idx: dict[str, list[int]] = defaultdict(list)
-    for seg_idx, (_, _, dialogue) in enumerate(segments):
-        key = strip_all(dialogue)
-        if key and len(key) < 8:
-            short_idx[key].append(seg_idx)
-
-    # ── 匹配 ──
-    seg_matches: dict[int, list[int]] = defaultdict(list)
-
-    for ei, (orig, _) in enumerate(entries):
-        orig_key = strip_all(orig)
-        if not orig_key:
-            continue
-
-        if len(orig_key) < 8:
-            for seg_idx in short_idx.get(orig_key, []):
-                seg_matches[seg_idx].append(ei)
-
-        if len(orig_key) >= 4:
-            query_grams = set()
-            for pos in range(0, len(orig_key) - 3, 2):
-                query_grams.add(orig_key[pos:pos+4])
-
-            vote_count: dict[int, int] = defaultdict(int)
-            for gram in query_grams:
-                for seg_idx in gram_index.get(gram, []):
-                    vote_count[seg_idx] += 1
-
-            if not vote_count:
-                continue
-
-            max_votes = max(vote_count.values())
-            min_votes = max(1, max_votes // 4)
-            gram_cnt = len(query_grams)
-            dynamic_cap = max(500, 2000 // max(1, gram_cnt))
-            candidates = sorted(
-                [(s, v) for s, v in vote_count.items() if v >= min_votes],
-                key=lambda x: -x[1]
-            )[:dynamic_cap]
-
-            for seg_idx, _ in candidates:
-                _, _, dialogue = segments[seg_idx]
-                dial_key = strip_all(dialogue)
-                matched, _ = verify_match(orig_key, dial_key)
-                if matched:
-                    seg_matches[seg_idx].append(ei)
-                elif orig_key in dial_key and len(orig_key) >= 2:
-                    seg_matches[seg_idx].append(ei)
-
-        if label and ei % 1000 == 0 and ei > 0:
-            print(f"  {label}进度: {ei}/{len(entries)}", flush=True)
-
-    # 统计
-    matched_set: set[int] = set()
-    for idxs in seg_matches.values():
-        matched_set.update(idxs)
-    pct = len(matched_set) / len(entries) * 100
-    print(f"  {label}已匹配: {len(matched_set)}/{len(entries)} ({pct:.1f}%)")
-
-    # ── 跨段合并匹配 ──
-    combined_final: dict[tuple[int, int], tuple[int, str]] = {}
-    if do_combined and len(segments) > 1:
-        combined_segs: list[tuple[int, int, str]] = []
-        for i in range(len(segments) - 1):
-            l1, s1, d1 = segments[i]
-            l2, s2, d2 = segments[i + 1]
-            if l1 == l2 and s1 + 1 == s2:
-                combined_segs.append((l1, s1, d1 + d2))
-
-        if combined_segs:
-            if label:
-                print(f"  {label}尝试合并匹配...")
-
-            combined_gram = build_gram_index(combined_segs)
-            combined_matches: dict[int, list[int]] = defaultdict(list)
-
-            combined_short_idx: dict[str, list[int]] = defaultdict(list)
-            for cs_idx, (_, _, dialogue) in enumerate(combined_segs):
-                key = strip_all(dialogue)
-                if key and len(key) < 8:
-                    combined_short_idx[key].append(cs_idx)
-
-            unmatched = sorted(set(range(len(entries))) - matched_set)
-            for ei in unmatched:
-                orig_key = strip_all(entries[ei][0])
-                if not orig_key:
-                    continue
-
-                if len(orig_key) < 8:
-                    for cs_idx in combined_short_idx.get(orig_key, []):
-                        combined_matches[cs_idx].append(ei)
-
-                if len(orig_key) >= 4:
-                    query_grams = set()
-                    for pos in range(0, len(orig_key) - 3, 2):
-                        query_grams.add(orig_key[pos:pos+4])
-
-                    vote_count = defaultdict(int)
-                    for gram in query_grams:
-                        for cs_idx in combined_gram.get(gram, []):
-                            vote_count[cs_idx] += 1
-
-                    if not vote_count:
-                        continue
-
-                    max_votes = max(vote_count.values())
-                    min_votes = max(1, max_votes // 4)
-                    gram_cnt = len(query_grams)
-                    dynamic_cap = max(500, 2000 // max(1, gram_cnt))
-                    candidates = sorted(
-                        [(cs, v) for cs, v in vote_count.items() if v >= min_votes],
-                        key=lambda x: -x[1]
-                    )[:dynamic_cap]
-
-                    for cs_idx, _ in candidates:
-                        _, _, dialogue = combined_segs[cs_idx]
-                        dial_key = strip_all(dialogue)
-                        matched, _ = verify_match(orig_key, dial_key)
-                        if matched:
-                            combined_matches[cs_idx].append(ei)
-
-            for cs_idx, entry_idxs in combined_matches.items():
-                l, s, combined_dialogue = combined_segs[cs_idx]
-                dial_key = strip_all(combined_dialogue)
-                best_ei = None
-                best_score = 0.0
-                for ei in entry_idxs:
-                    _, score = verify_match(strip_all(entries[ei][0]), dial_key)
-                    if score > best_score:
-                        best_score = score
-                        best_ei = ei
-                if best_ei is not None:
-                    combined_final[(l, s)] = (best_ei, convert_outer_quotes(entries[best_ei][1]))
-                    matched_set.add(best_ei)
-
-            print(f"  {label}合并匹配新增: {len(combined_final)} 组, "
-                  f"累计匹配: {len(matched_set)}/{len(entries)} ({len(matched_set)/len(entries)*100:.1f}%)")
-
-    return seg_matches, combined_final, matched_set
 
 
 def main():
@@ -504,12 +459,12 @@ def main():
     print(f"  行数: {len(lines)}")
 
 
-    # ── 匹配：按 annotation 边界分段 ──
-    print("\n解析分段（按所有 @annotation 边界）...")
+    # ── 匹配：按 @k 分段 ──
+    print("\n解析分段（按 @k 分句）...")
     segments = build_segments(lines)
-    print(f"  片段数: {len(segments)}")
+    print(f"  @k 片段数: {len(segments)}")
 
-    seg_matches, combined_final, matched_set = match_segments(entries, segments, label="分段")
+    seg_matches, combined_final, matched_set = match_segments(entries, segments, label="@k分段")
 
     # ── 匹配：整行全文本（不分段） ──
     print("\n生成全文本片段...")
@@ -518,21 +473,28 @@ def main():
 
     full_matches, _, _ = match_segments(entries, full_segments, label="全文本", do_combined=False)
 
-    # 构建全文本匹配的 line_idx → (entry_idx, score, translation) 查找表
-    fulltext_line_matches: dict[int, tuple[int, float, str]] = {}
+    # 构建全文本匹配的 line_idx → translation 查找表
+    fulltext_line_matches: dict[int, str] = {}
     for seg_idx, entry_idxs in full_matches.items():
         line_idx, _, dialogue = full_segments[seg_idx]
         dial_key = strip_all(dialogue)
-        best_ei = None
+        best_ei = -1
         best_score = 0.0
         for ei in entry_idxs:
-            _, score = verify_match(strip_all(entries[ei][0]), dial_key)
-            if score > best_score:
-                best_score = score
+            orig_key = strip_all(entries[ei][0])
+            if not orig_key:
+                continue
+            if orig_key == dial_key:
+                best_score = 1.0
                 best_ei = ei
-        if best_ei is not None:
-            fulltext_line_matches[line_idx] = (
-                best_ei, best_score, convert_outer_quotes(entries[best_ei][1]))
+                break
+            elif orig_key in dial_key or dial_key in orig_key:
+                score = len(orig_key) / max(len(dial_key), 1)
+                if score > best_score:
+                    best_score = score
+                    best_ei = ei
+        if best_ei >= 0:
+            fulltext_line_matches[line_idx] = convert_outer_quotes(entries[best_ei][1])
 
     # ── 重构翻译 ──
     print("\n重构翻译文本...")
@@ -548,7 +510,6 @@ def main():
     translated_fulltext = 0
     dialogue_lines = 0
     translated_dialogue_lines = 0
-    recent_context = deque(maxlen=CONTEXT_WINDOW)  # 前 N 行已选条目索引，用于跨行消歧
 
     for line_idx, line in enumerate(lines):
         sp = line.find(SEPARATOR)
@@ -564,224 +525,95 @@ def main():
 
         seg_m = line_matches.get(line_idx, {})
         if not seg_m and not any(k[0] == line_idx for k in combined_final):
-            # 非对话行（无 @r）不进行全文本匹配
             if '@r' not in content:
                 continue
-            # 如果全文本匹配可用，尝试用它
-            ft_info = fulltext_line_matches.get(line_idx)
-            if ft_info:
-                ft_ei, ft_score, ft_trans = ft_info
-                if ft_score >= FUZZY_THRESHOLD:
-                    trans_dict[index] = reconstruct_segment(content, [ft_trans], name_map=name_map)
-                    translated_lines += 1
-                    if '@r' in content:
-                        translated_dialogue_lines += 1
-                    translated_fulltext += 1
-                    continue
-            continue
-
-        segs = split_by_annotations(content)
-        new_segs = []
-        has_trans = False
-        selected_eis = []  # 本行最终选中的条目索引，供后续行参考
-        # 分段得分汇总（用于与全文本对比）
-        seg_match_scores: list[float] = []
-        # 分段覆盖率：已匹配对话字符数 / 总对话字符数
-        total_dial_len = 0
-        total_matched_len = 0
-
-        consumed = set()
-        for seg_idx, seg in enumerate(segs):
-            if seg_idx in consumed:
-                continue
-
-            # 跨段合并匹配优先
-            combined_key = (line_idx, seg_idx)
-            if combined_key in combined_final:
-                best_ei, trans = combined_final[combined_key]
-                if seg_idx + 1 < len(segs):
-                    merged_raw = segs[seg_idx] + segs[seg_idx + 1]
-                    consumed.add(seg_idx + 1)
-                else:
-                    merged_raw = segs[seg_idx]
-                new_segs.append(reconstruct_segment(merged_raw, [trans], name_map=name_map))
-                selected_eis.append(best_ei)
-                seg_match_scores.append(1.0)
-                has_trans = True
-                continue
-
-            eis = seg_m.get(seg_idx, [])
-            if not eis:
-                new_segs.append(seg)
-                continue
-
-            # 上下文消歧：用本行其他片段 + 前 CONTEXT_WINDOW 行已选条目的中位数做参考
-            ref_candidates = []
-            for s_idx in range(len(segs)):
-                if s_idx != seg_idx:
-                    ref_candidates.extend(seg_m.get(s_idx, []))
-            for prev_eis in recent_context:
-                ref_candidates.extend(prev_eis)
-            if len(ref_candidates) > 1:
-                sorted_ref = sorted(ref_candidates)
-                ref_idx = sorted_ref[len(sorted_ref) // 2]
-            else:
-                ref_idx = ref_candidates[0] if ref_candidates else -1
-
-            raw_dialogue = extract_dialogue(seg)
-            total_dial_len += len(raw_dialogue)
-            dial_key = strip_all(raw_dialogue)
-
-            # ── 收集所有通过校验的匹配条目及其位置 ──
-            verified = []     # (pos, entry_orig, translated, score, raw_score, ei)
-            fallback_matches = []  # (score, translated, ei) 模糊匹配非子串，作整段候选
-            for ei in eis:
-                e_orig = entries[ei][0]
-                e_key = strip_all(e_orig)
-                if not e_key:
-                    continue
-                e_trans = convert_outer_quotes(entries[ei][1])
-
-                # 短 key（< 2 字）：按优先级分三层匹配
-                if len(e_key) < 2:
-                    # ① 最高：带标点的全文精确匹配
-                    if e_orig == raw_dialogue:
-                        verified.append((0, e_orig, e_trans, 1.0, 1.0, ei))
-                    # ② 其次：带标点的子串匹配（可定位多条目组合）
-                    elif e_orig in raw_dialogue:
-                        pos = raw_dialogue.find(e_orig)
-                        _, score = verify_match(e_key, dial_key)
-                        score = max(score, 0.5)
-                        raw_score = SequenceMatcher(None, e_orig, raw_dialogue).ratio()
-                        verified.append((pos, e_orig, e_trans, score, raw_score, ei))
-                    else:
-                        # ③ 最后：忽略标点的模糊匹配
-                        _, score = verify_match(e_key, dial_key)
-                        if score >= FUZZY_THRESHOLD:
-                            fallback_matches.append((score, e_trans, ei))
-                    continue
-
-                if e_key in dial_key:
-                    # 子串匹配 → 可定位到具体位置，参与多条目组合
-                    pos = raw_dialogue.find(e_orig)
-                    if pos < 0:
-                        e_stripped = e_orig.strip()
-                        pos = raw_dialogue.find(e_stripped)
-                        if pos >= 0:
-                            e_orig = e_stripped
-                        else:
-                            continue
-                    _, score = verify_match(e_key, dial_key)
-                    score = max(score, 0.5)
-                    raw_score = SequenceMatcher(None, e_orig, raw_dialogue).ratio()
-                    verified.append((pos, e_orig, e_trans, score, raw_score, ei))
-                else:
-                    _, score = verify_match(e_key, dial_key)
-                    if score >= FUZZY_THRESHOLD:
-                        fallback_matches.append((score, e_trans, ei))
-
-            if not verified:
-                if fallback_matches:
-                    fallback_matches.sort(key=lambda x: -x[0])
-                    best_trans = fallback_matches[0][1]
-                    best_ei = fallback_matches[0][2]
-                    if '@r' not in seg:
-                        exact_fb = [f for f in fallback_matches if strip_all(entries[f[2]][0]) == dial_key]
-                        if exact_fb:
-                            best_trans = exact_fb[0][1]
-                            best_ei = exact_fb[0][2]
-                        else:
-                            new_segs.append(seg)
-                            continue
-                    new_segs.append(reconstruct_segment(seg, [best_trans], name_map=name_map))
-                    selected_eis.append(best_ei)
-                    seg_match_scores.append(fallback_matches[0][0])
-                    has_trans = True
-                    continue
-                else:
-                    new_segs.append(seg)
-                    continue
-
-            # ── 按位置排序，消除重叠 ──
-            verified.sort(key=lambda x: (x[0], -x[3]))
-            chosen = []
-            for v in verified:
-                v_pos, v_orig = v[0], v[1]
-                v_end = v_pos + len(v_orig)
-                for c in chosen:
-                    c_pos, c_orig = c[0], c[1]
-                    c_end = c_pos + len(c_orig)
-                    if not (v_end <= c_pos or v_pos >= c_end):
-                        break
-                else:
-                    chosen.append(v)
-
-            # 无 @r 的片段只接受原文完全一致的翻译
-            if '@r' not in seg:
-                exact = [c for c in chosen if strip_all(c[1]) == dial_key]
-                if exact:
-                    chosen = [exact[0]]
-                else:
-                    new_segs.append(seg)
-                    continue
-
-            # ── 按位置拼接翻译 ──
-            chosen.sort(key=lambda x: x[0])
-            new_text = ""
-            cursor = 0
-            for pos, e_orig, e_trans, score, raw_score, ei in chosen:
-                if pos > cursor:
-                    new_text += raw_dialogue[cursor:pos]
-                new_text += e_trans
-                cursor = pos + len(e_orig)
-            if cursor < len(raw_dialogue):
-                new_text += raw_dialogue[cursor:]
-
-            new_segs.append(reconstruct_segment(seg, [new_text], name_map=name_map))
-            selected_eis.extend([ei for _, _, _, _, _, ei in chosen])
-            seg_match_scores.extend([s for _, _, _, s, _, _ in chosen])
-            total_matched_len += sum(len(e_orig) for _, e_orig, _, _, _, _ in chosen)
-            has_trans = True
-
-        # ── 与全文本匹配比较得分（带覆盖率加权）──
-        ft_info = fulltext_line_matches.get(line_idx)
-        if ft_info and has_trans and '@r' in content:
-            ft_ei, ft_score, ft_trans = ft_info
-            avg_seg_score = sum(seg_match_scores) / len(seg_match_scores) if seg_match_scores else 0.0
-            seg_covg = total_matched_len / total_dial_len if total_dial_len > 0 else 0
-            # 分段覆盖率 >= 50% 时，全文本需要显著更好（1.3x）才能替代
-            # 分段覆盖率 < 50% 时，全文本略好（1.05x）即用
-            covg_factor = 1.05 if seg_covg < 0.5 else 1.3
-            if ft_score >= FUZZY_THRESHOLD and ft_score > avg_seg_score * covg_factor:
-                trans_dict[index] = reconstruct_segment(content, [ft_trans], name_map=name_map)
+            # 分段无匹配，尝试全文本
+            ft_trans = fulltext_line_matches.get(line_idx)
+            if ft_trans:
+                clean_content = strip_ruby(content)
+                trans_dict[index] = reconstruct_segment(clean_content, [ft_trans], name_map=name_map)
                 translated_lines += 1
                 translated_fulltext += 1
                 if '@r' in content:
                     translated_dialogue_lines += 1
+            continue
+
+        stripped = strip_ruby(content)
+        ann_segs = split_by_annotations(stripped)
+        new_segs = []
+        has_trans = False
+        consumed = set()
+
+        for unit_idx, ann_seg in enumerate(ann_segs):
+            if unit_idx in consumed:
                 continue
+
+            # 跨段合并匹配优先
+            combined_key = (line_idx, unit_idx)
+            if combined_key in combined_final:
+                best_ei, trans = combined_final[combined_key]
+                if unit_idx + 1 < len(ann_segs):
+                    merged = ann_seg + ann_segs[unit_idx + 1]
+                    consumed.add(unit_idx + 1)
+                else:
+                    merged = ann_seg
+                new_segs.append(reconstruct_segment(merged, [trans], name_map=name_map))
+                has_trans = True
+                continue
+
+            eis = seg_m.get(unit_idx, [])
+            if not eis:
+                new_segs.append(ann_seg)  # 保留原文（ruby 已去除）
+                continue
+
+            # 选最佳翻译
+            dial_key = strip_all(extract_dialogue(ann_seg))
+            best_ei = -1
+            best_score = 0.0
+            for ei in eis:
+                orig_key = strip_all(entries[ei][0])
+                if not orig_key:
+                    continue
+                if orig_key == dial_key:
+                    best_score = 1.0
+                    best_ei = ei
+                    break
+                elif orig_key in dial_key or dial_key in orig_key:
+                    score = len(orig_key) / max(len(dial_key), 1)
+                    if score > best_score:
+                        best_score = score
+                        best_ei = ei
+                else:
+                    if len(orig_key) >= 5 and len(dial_key) >= 5:
+                        short_len = min(len(orig_key), len(dial_key))
+                        long_len = max(len(orig_key), len(dial_key))
+                        if long_len / short_len <= 3:
+                            score = SequenceMatcher(None, orig_key, dial_key).ratio()
+                            if score >= FUZZY_THRESHOLD and score > best_score:
+                                best_score = score
+                                best_ei = ei
+
+            if best_ei >= 0:
+                trans = convert_outer_quotes(entries[best_ei][1])
+                new_segs.append(reconstruct_segment(ann_seg, [trans], name_map=name_map))
+                has_trans = True
+            else:
+                new_segs.append(ann_seg)
 
         if has_trans:
             trans_dict[index] = ''.join(new_segs)
             translated_lines += 1
             if '@r' in content:
                 translated_dialogue_lines += 1
-            if selected_eis:
-                recent_context.append(selected_eis)
-        else:
-            # 非对话行（无 @r）不进行全文本匹配
-            if '@r' not in content:
-                continue
-            # 分段无匹配，尝试全文本
-            ft_info = fulltext_line_matches.get(line_idx)
-            if ft_info:
-                ft_ei, ft_score, ft_trans = ft_info
-                if ft_score >= FUZZY_THRESHOLD:
-                    trans_dict[index] = reconstruct_segment(content, [ft_trans], name_map=name_map)
-                    translated_lines += 1
-                    translated_fulltext += 1
-                    if '@r' in content:
-                        translated_dialogue_lines += 1
-                    continue
+        elif '@r' in content:
+            ft_trans = fulltext_line_matches.get(line_idx)
+            if ft_trans:
+                stripped = strip_ruby(content)
+                trans_dict[index] = reconstruct_segment(stripped, [ft_trans], name_map=name_map)
+                translated_lines += 1
+                translated_fulltext += 1
+                if '@r' in content:
+                    translated_dialogue_lines += 1
 
     # ── 输出 CSV ──
     print(f"加载原始 CSV: {HIGU_CSV}")
