@@ -23,7 +23,7 @@ def verify_match(a: str, b: str) -> float:
         ratio = len(short) / len(long)
         is_prefix = long.startswith(short)
         if len(short) >= 3:
-            min_ratio = 0.4 if is_prefix else 0.25
+            min_ratio = 0.5 if is_prefix else 0.3
             if ratio >= min_ratio:
                 return 0.9
         if len(short) == 2:
@@ -39,10 +39,10 @@ def verify_match(a: str, b: str) -> float:
         sim = rapidfuzz_fuzz.ratio(a, b) / 100.0
 
         if len_ratio < 0.6:
-            return sim if sim >= 0.7 else 0.0
+            return sim if sim >= 0.8 else 0.0
         if len_ratio >= 0.9:
-            return sim if sim >= 0.75 else 0.0
-        return sim if sim >= 0.6 else 0.0
+            return sim if sim >= 0.85 else 0.0
+        return sim if sim >= 0.7 else 0.0
 
     return 0.0
 
@@ -130,9 +130,9 @@ def find_candidates(text, gram_index, short_index, all_entries, max_candidates=2
 
 
 _CONCAT_FALLBACK_MAX_SCORE = 0.95
-_CONCAT_MIN_COVERAGE = 0.70
+_CONCAT_MIN_COVERAGE = 0.8
 _CONCAT_MIN_SPAN_LEN = 3
-_CONCAT_PARTIAL_MIN = 80.0
+_CONCAT_PARTIAL_MIN = 90.0
 
 
 def _try_concat_cover(matched_stripped, candidates, all_entries):
