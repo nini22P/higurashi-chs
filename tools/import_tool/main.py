@@ -10,33 +10,6 @@ from matcher_exact import align_and_translate
 from matcher_fuzzy import align_and_translate_fuzzy
 
 
-def merge_unmatched_segments(orig_segs, result, index):
-    n = len(orig_segs)
-    i = 0
-    while i < n:
-        if result[i] is not None:
-            i += 1
-            continue
-
-        j = i
-        while j < n and result[j] is None:
-            j += 1
-
-        for k in range(i + 1, j + 1):
-            merged = "".join(orig_segs[i:k])
-            merged_key = normalize(merged)
-            if merged_key in index:
-                for orig_tuple, trans_tuple in index[merged_key]:
-                    if len(orig_tuple) == 1 and len(trans_tuple) == 1:
-                        if normalize(orig_tuple[0]) == merged_key:
-                            result[i] = trans_tuple[0]
-                            break
-            if result[i] is not None:
-                break
-
-        i += 1
-
-
 def main():
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -70,7 +43,6 @@ def main():
         total_rows += 1
 
         exact_segs = align_and_translate(orig_segs, index)
-        merge_unmatched_segments(orig_segs, exact_segs, index)
         fuzzy_segs = align_and_translate_fuzzy(orig_segs, index)
         has_fuzzy = any(f and not e for e, f in zip(exact_segs, fuzzy_segs))
         has_exact = any(exact_segs)
@@ -78,15 +50,18 @@ def main():
         if has_fuzzy:
             fuzzy_rows += 1
             combined = [f if (f and not e) else e for e, f in zip(exact_segs, fuzzy_segs)]
+            adjusted = [adjust_quotes(o, c or o) for o, c in zip(orig_segs, combined)]
             df.at[i, "translated"] = ""
-            df.at[i, "temp"] = SEP.join(
-                c if c else o for c, o in zip(combined, orig_segs)
-            )
+            df.at[i, "temp"] = SEP.join(adjusted)
         elif has_exact:
-            exact_rows += 1
-            df.at[i, "translated"] = SEP.join(
-                t if t else o for t, o in zip(exact_segs, orig_segs)
-            )
+            adjusted = [adjust_quotes(o, t or o) for o, t in zip(orig_segs, exact_segs)]
+            all_matched = all(exact_segs)
+            if all_matched:
+                exact_rows += 1
+                df.at[i, "translated"] = SEP.join(adjusted)
+            else:
+                df.at[i, "translated"] = ""
+                df.at[i, "temp"] = SEP.join(adjusted)
         else:
             unmatched_rows += 1
 
