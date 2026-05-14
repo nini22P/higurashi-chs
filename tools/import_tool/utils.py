@@ -4,7 +4,7 @@ import re
 import os
 import pandas as pd
 
-SEP = "::"
+SEP = "⭕"
 
 _RE_AT_WORD = re.compile(r'@\w+')
 _RE_NON_CJK = re.compile(r'[^\w\u4e00-\u9fff\u3040-\u30ff]')
