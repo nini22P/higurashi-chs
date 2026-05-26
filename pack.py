@@ -187,7 +187,7 @@ def main() -> int:
     extract_raw_roms()
     prepare_patch_dir()
     run(sys.executable, ROOT / "tools/script-tool.py", "import", "--main", "main.csv", "--text", "higurashi-hou.csv")
-    run(sys.executable, ROOT / "create-mapping.py")
+    run(sys.executable, ROOT / "shin-tools" / "mapping-tool.py", "mapping-config.json")
     run(BIN_DIR / ("shin-tl.exe" if platform_key()[0] == "windows" else "shin-tl"), "snr", "rewrite", "higurashi-hou-v2", RAW_DIR / "patch" / "main.snr", BUILD_DIR / "main-mapped.csv", BUILD_DIR / "patch" / "main.snr")
     run(BIN_DIR / ("fnt4-tool.exe" if platform_key()[0] == "windows" else "fnt4-tool"), "rebuild", RAW_DIR / "data" / "newrodin.fnt", BUILD_DIR / "patch" / "newrodin.fnt", FONT_PATH, "-s", "102", "--letter-spacing", "2", "-c", BUILD_DIR / "mapping.toml")
     run(BIN_DIR / ("shin-tl.exe" if platform_key()[0] == "windows" else "shin-tl"), "rom", "create", "--rom-version", "higurashi-hou-v2", BUILD_DIR / "patch", BUILD_DIR / "romfs" / "patch.rom")

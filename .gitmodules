@@ -1,0 +1,3 @@
+[submodule "shin-tools"]
+	path = shin-tools
+	url = https://github.com/nini22P/shin-tools.git
