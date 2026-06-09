@@ -181,12 +181,34 @@ prepare_patch_dir() {
     fi
 }
 
+patch_exefs() {
+    log "Patching exefs binary..."
+
+    mkdir -p "$BUILD_DIR/exefs"
+    cp -f "$RAW_DIR/main" "$BUILD_DIR/exefs/main"
+
+    if [ "$OS" = "windows" ] || command -v wine >/dev/null 2>&1; then
+        run_cmd "$BIN_DIR/nx2elf.exe" "$BUILD_DIR/exefs/main"
+        run_cmd python "$ROOT/shin-tools/patch-tool.py" -b "$BUILD_DIR/exefs/main.elf" -c "$BUILD_DIR/exefs-mapped.csv"
+        run_cmd "$BIN_DIR/elf2nso.exe" "$BUILD_DIR/exefs/main.elf" "$BUILD_DIR/exefs/main"
+        rm -f "$BUILD_DIR/exefs/main.elf"
+    else
+        err "exefs patching requires Windows executables or Wine to run nx2elf/elf2nso"
+    fi
+}
+
 run_cmd() {
     local cmd=$1
     shift
+
     if [ "$OS" = "windows" ] && [ ! -f "$cmd" ] && [ -f "${cmd}.exe" ]; then
         cmd="${cmd}.exe"
+    elif [ "$OS" != "windows" ] && [[ "$cmd" == *.exe ]] && command -v wine >/dev/null 2>&1; then
+        echo "+ wine $cmd $*"
+        wine "$cmd" "$@"
+        return 0
     fi
+
     echo "+ $cmd $*"
     "$cmd" "$@"
 }
@@ -209,6 +231,8 @@ main() {
 
     run_cmd "$BIN_DIR/shin-tl" snr rewrite higurashi-hou-v2 "$RAW_DIR/patch/main.snr" "$BUILD_DIR/main-mapped.csv" "$BUILD_DIR/patch/main.snr"
     run_cmd "$BIN_DIR/fnt4-tool" rebuild "$RAW_DIR/data/newrodin.fnt" "$BUILD_DIR/patch/newrodin.fnt" "$FONT_PATH" -s 102 --letter-spacing 2 -c "$BUILD_DIR/mapping.toml"
+
+    patch_exefs
 
     run_cmd "$BIN_DIR/shin-tl" rom create --rom-version higurashi-hou-v2 "$BUILD_DIR/patch" "$BUILD_DIR/romfs/patch.rom"
 
