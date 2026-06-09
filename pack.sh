@@ -204,7 +204,7 @@ main() {
 
     prepare_patch_dir
 
-    run_cmd python "$ROOT/tools/script-tool.py" import --main main.csv --text higurashi-hou.csv
+    run_cmd python "$ROOT/shin-tools/script-tool.py" import --main main.csv, --text higurashi-hou.csv --suffix hou,sui
     run_cmd python "$ROOT/shin-tools/mapping-tool.py" mapping-config.json
 
     run_cmd "$BIN_DIR/shin-tl" snr rewrite higurashi-hou-v2 "$RAW_DIR/patch/main.snr" "$BUILD_DIR/main-mapped.csv" "$BUILD_DIR/patch/main.snr"
