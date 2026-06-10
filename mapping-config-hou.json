@@ -1,0 +1,26 @@
+{
+    "fnt_path": "raw/hou/data/newrodin.fnt",
+    "mapping_output": "build/mapping-hou.toml",
+    "csv_configs": [
+        {
+            "input": "build/main-hou.csv",
+            "output": "build/main-hou-mapped.csv",
+            "original_cols": [
+                "s"
+            ],
+            "translation_cols": [
+                "translated"
+            ]
+        },
+        {
+            "input": "exefs.csv",
+            "output": "build/exefs-mapped.csv",
+            "original_cols": [
+                "text"
+            ],
+            "translation_cols": [
+                "translation"
+            ]
+        }
+    ]
+}

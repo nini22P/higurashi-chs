@@ -1,0 +1,26 @@
+{
+    "fnt_path": "raw/sui/data/gothic.fnt",
+    "mapping_output": "build/mapping-sui.toml",
+    "csv_configs": [
+        {
+            "input": "build/main-sui.csv",
+            "output": "build/main-sui-mapped.csv",
+            "original_cols": [
+                "s"
+            ],
+            "translation_cols": [
+                "translated"
+            ]
+        },
+        {
+            "input": "eboot-utf-16le.csv",
+            "output": "build/eboot-utf-16le-mapped.csv",
+            "original_cols": [
+                "text"
+            ],
+            "translation_cols": [
+                "translation"
+            ]
+        }
+    ]
+}

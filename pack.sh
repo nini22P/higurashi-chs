@@ -1,243 +1,116 @@
 #!/bin/bash
 set -euo pipefail
+cd "$(dirname "$0")"
 
-ROOT="$(cd "$(dirname "$0")" && pwd)"
-RAW_DIR="$ROOT/raw"
-BUILD_DIR="$ROOT/build"
-BIN_DIR="$ROOT/bin"
-FONT_URL="https://github.com/Warren2060/ChillRound/releases/download/v3.200/ChillRoundF_v3.200.zip"
-FONT_DIR="$BUILD_DIR/ChillRoundF_v3.200"
-FONT_PATH="$FONT_DIR/ChillRoundFBold.ttf"
-FONT_ZIP="$BUILD_DIR/font.zip"
-
-OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
-ARCH="$(uname -m)"
-case "$ARCH" in
-    x86_64|amd64) ARCH="x86_64" ;;
-    aarch64|arm64) ARCH="aarch64" ;;
-    *) echo "Unsupported arch: $ARCH"; exit 1 ;;
-esac
-case "$OS" in
-    linux) OS="linux" ;;
-    darwin) OS="darwin" ;;
-    mingw*|cygwin*|msys*) OS="windows" ;;
-    *) echo "Unsupported OS: $OS"; exit 1 ;;
-esac
-echo "Platform detected: $OS/$ARCH"
-
-declare -A TOOLS=(
-    ["shin-tl"]="DCNick3/shin-translation-tools"
-    ["fnt4-tool"]="nini22P/fnt4-tool"
-)
-
-get_asset_name() {
-    local tool=$1
-    local os=$2
-    local arch=$3
-    case "$tool" in
-        shin-tl)
-            if [ "$os" = "windows" ]; then
-                echo "shin-tl-x86_64-pc-windows-msvc.zip"
-            elif [ "$os" = "linux" ] && [ "$arch" = "x86_64" ]; then
-                echo "shin-tl-x86_64-unknown-linux-gnu.tar.xz"
-            elif [ "$os" = "linux" ] && [ "$arch" = "aarch64" ]; then
-                echo "shin-tl-aarch64-unknown-linux-gnu.tar.xz"
-            elif [ "$os" = "darwin" ] && [ "$arch" = "x86_64" ]; then
-                echo "shin-tl-x86_64-apple-darwin.tar.xz"
-            elif [ "$os" = "darwin" ] && [ "$arch" = "aarch64" ]; then
-                echo "shin-tl-aarch64-apple-darwin.tar.xz"
-            fi
-            ;;
-        fnt4-tool)
-            if [ "$os" = "windows" ]; then
-                echo "fnt4-tool-windows-${arch}.zip"
-            elif [ "$os" = "linux" ]; then
-                echo "fnt4-tool-linux-${arch}.zip"
-            elif [ "$os" = "darwin" ]; then
-                echo "fnt4-tool-macos-${arch}.zip"
-            fi
-            ;;
-    esac
-}
-
-TOOL_NAMES=("shin-tl" "fnt4-tool")
+pip install --user -r shin-tools/requirements.txt
 
 log() { echo "[*] $*"; }
 err() { echo "[!] $*" >&2; exit 1; }
 
-for cmd in curl unzip tar python; do
-    if ! command -v "$cmd" &>/dev/null; then
-        if [ "$cmd" = "python" ] && command -v python3 &>/dev/null; then
-            alias python=python3
-        else
-            err "Missing required command: $cmd"
-        fi
+exec() {
+    local cmd=$1
+    shift
+    if [ ! -f "$cmd" ] && [ -f "${cmd}.exe" ]; then
+        cmd="${cmd}.exe"
     fi
-done
-
-github_latest_asset_url() {
-    local repo=$1
-    local asset_name=$2
-    local api_url="https://api.github.com/repos/$repo/releases/latest"
-    local asset_url
-    asset_url=$(curl -sL "$api_url" | python -c "
-import sys, json
-data = json.load(sys.stdin)
-for asset in data.get('assets', []):
-    if asset.get('name') == '$asset_name':
-        print(asset['browser_download_url'])
-        break
-")
-    if [ -z "$asset_url" ]; then
-        err "Asset '$asset_name' not found in latest release of $repo"
-    fi
-    echo "$asset_url"
-}
-
-ensure_tool() {
-    local tool=$1
-    local repo=${TOOLS[$tool]}
-    local exe_name="$tool"
-    [ "$OS" = "windows" ] && exe_name="${tool}.exe"
-    local dest_exe="$BIN_DIR/$exe_name"
-
-    if [ -f "$dest_exe" ]; then
-        log "Tool already installed: $dest_exe"
-        return 0
-    fi
-
-    local asset_name
-    asset_name=$(get_asset_name "$tool" "$OS" "$ARCH")
-    if [ -z "$asset_name" ]; then
-        err "No asset defined for $tool on $OS/$ARCH"
-    fi
-
-    log "Downloading $tool from GitHub..."
-    local download_url
-    download_url=$(github_latest_asset_url "$repo" "$asset_name")
-
-    local tmp_dir
-    tmp_dir=$(mktemp -d)
-    pushd "$tmp_dir" >/dev/null
-
-    local archive_name="$asset_name"
-    curl -sL "$download_url" -o "$archive_name"
-
-    if [[ "$archive_name" == *.zip ]]; then
-        unzip -q "$archive_name"
-    elif [[ "$archive_name" == *.tar.xz ]]; then
-        tar -xf "$archive_name"
+    echo "+ $cmd $*"
+    if [[ "$cmd" == *.exe ]] && command -v wine &>/dev/null; then
+        wine "$cmd" "$@"
     else
-        err "Unknown archive type: $archive_name"
+        "$cmd" "$@"
     fi
-
-    local found
-    found=$(find . -type f -name "$exe_name" -o -name "$tool" | head -1)
-    if [ -z "$found" ]; then
-        err "Executable not found in archive"
-    fi
-    mkdir -p "$BIN_DIR"
-    cp "$found" "$dest_exe"
-    popd >/dev/null
-    rm -rf "$tmp_dir"
-
-    if [ "$OS" != "windows" ]; then
-        chmod +x "$dest_exe"
-    fi
-    log "Installed $tool -> $dest_exe"
-}
-
-download_font() {
-    if [ -f "$FONT_PATH" ]; then
-        log "Font already exists: $FONT_PATH"
-        return
-    fi
-    log "Downloading font..."
-    mkdir -p "$BUILD_DIR"
-    curl -sL "$FONT_URL" -o "$FONT_ZIP"
-    unzip -q "$FONT_ZIP" -d "$BUILD_DIR"
-    rm "$FONT_ZIP"
 }
 
 extract_raw_roms() {
+    local game=$1
     for name in data patch append; do
-        target="$RAW_DIR/$name"
-        rom="$RAW_DIR/$name.rom"
+        local target="raw/$game/$name"
+        local rom="raw/$game/$name.rom"
         if [ -d "$target" ]; then
             continue
         fi
         if [ -f "$rom" ]; then
             log "Extracting $rom ..."
-            "$BIN_DIR/shin-tl" rom extract "$rom" "$target"
+            exec bin/shin-tl.exe rom extract "$rom" "$target"
         else
             log "Missing $rom, skipping extraction."
         fi
     done
 }
 
-prepare_patch_dir() {
-    if [ ! -d "$BUILD_DIR/patch" ]; then
-        cp -r "$RAW_DIR/patch" "$BUILD_DIR/patch"
-    fi
-}
+pack_hou() {
+    mkdir -p "build/romfs" "bin"
 
-patch_exefs() {
-    log "Patching exefs binary..."
+    extract_raw_roms "hou"
 
-    mkdir -p "$BUILD_DIR/exefs"
-    cp -f "$RAW_DIR/main" "$BUILD_DIR/exefs/main"
+    rm -rf "build/patch-hou"
+    cp -r "raw/hou/patch" "build/patch-hou"
 
-    if [ "$OS" = "windows" ] || command -v wine >/dev/null 2>&1; then
-        run_cmd "$BIN_DIR/nx2elf.exe" "$BUILD_DIR/exefs/main"
-        run_cmd python "$ROOT/shin-tools/patch-tool.py" -b "$BUILD_DIR/exefs/main.elf" -c "$BUILD_DIR/exefs-mapped.csv"
-        run_cmd "$BIN_DIR/elf2nso.exe" "$BUILD_DIR/exefs/main.elf" "$BUILD_DIR/exefs/main"
-        rm -f "$BUILD_DIR/exefs/main.elf"
-    else
-        err "exefs patching requires Windows executables or Wine to run nx2elf/elf2nso"
-    fi
-}
-
-run_cmd() {
-    local cmd=$1
-    shift
-
-    if [ "$OS" = "windows" ] && [ ! -f "$cmd" ] && [ -f "${cmd}.exe" ]; then
-        cmd="${cmd}.exe"
-    elif [ "$OS" != "windows" ] && [[ "$cmd" == *.exe ]] && command -v wine >/dev/null 2>&1; then
-        echo "+ wine $cmd $*"
-        wine "$cmd" "$@"
-        return 0
+    if [ ! -f "build/main-hou.csv" ]; then
+        log "Extracting text from main.snr..."
+        exec bin/shin-tl.exe snr read higurashi-hou-v2 raw/hou/patch/main.snr build/main-hou.csv
     fi
 
-    echo "+ $cmd $*"
-    "$cmd" "$@"
+    python shin-tools/script-tool.py import --main "build/main-hou.csv," --text higurashi-hou.csv --format "escaped,unescaped" --suffix "hou,sui"
+    python shin-tools/mapping-tool.py mapping-config-hou.json
+
+    exec bin/fnt4-tool.exe rebuild raw/hou/data/newrodin.fnt build/patch-hou/newrodin.fnt assets/font/ResourceHanRoundedCN-Medium.ttf -s 144 --letter-spacing 2 -c build/mapping-hou.toml
+    exec bin/shin-tl.exe snr rewrite higurashi-hou-v2 raw/hou/patch/main.snr build/main-hou-mapped.csv build/patch-hou/main.snr
+
+    exec bin/shin-tl.exe rom create --rom-version higurashi-hou-v2 build/patch-hou build/romfs/patch.rom
+
+    log "Patching exefs..."
+    mkdir -p "build/exefs"
+    cp -f "assets/exefs/main" "build/exefs/main"
+    exec bin/nx2elf.exe build/exefs/main
+    python shin-tools/patch-tool.py -b build/exefs/main.elf -c build/exefs-mapped.csv
+    exec bin/elf2nso.exe build/exefs/main.elf build/exefs/main
+    rm -f build/exefs/main.elf
+
+    log "Complete!"
+    log "Saved to: build/romfs/"
+    log "Saved to: build/exefs/"
 }
 
-main() {
-    mkdir -p "$RAW_DIR" "$BUILD_DIR" "$BUILD_DIR/romfs" "$BIN_DIR"
+pack_sui() {
+    rm -rf "build/repatch"
+    mkdir -p "build" "bin"
+    cp -r "assets/repatch" "build"
 
-    for tool in "${TOOL_NAMES[@]}"; do
-        ensure_tool "$tool"
-    done
+    extract_raw_roms "sui"
 
-    download_font
+    rm -rf "build/patch-sui"
+    mkdir -p "build/patch-sui"
 
-    extract_raw_roms
+    if [ ! -f "build/main-sui.csv" ]; then
+        log "Extracting text from main.snr..."
+        exec bin/shin-tl.exe snr read higurashi-sui raw/sui/data/main.snr build/main-sui.csv
+    fi
 
-    prepare_patch_dir
+    python shin-tools/script-tool.py import --main ",build/main-sui.csv" --text higurashi-hou.csv --format "escaped,unescaped" --suffix "hou,sui"
+    python shin-tools/mapping-tool.py mapping-config-sui.json
 
-    run_cmd python "$ROOT/shin-tools/script-tool.py" import --main main.csv, --text higurashi-hou.csv --suffix hou,sui
-    run_cmd python "$ROOT/shin-tools/mapping-tool.py" mapping-config.json
+    exec bin/fnt4-tool.exe rebuild raw/sui/data/gothic.fnt build/patch-sui/gothic.fnt assets/font/ResourceHanRoundedCN-Medium.ttf -s 40 --letter-spacing 2 -c build/mapping-sui.toml
+    exec bin/shin-tl.exe snr rewrite higurashi-sui raw/sui/data/main.snr build/main-sui-mapped.csv build/patch-sui/main.snr
 
-    run_cmd "$BIN_DIR/shin-tl" snr rewrite higurashi-hou-v2 "$RAW_DIR/patch/main.snr" "$BUILD_DIR/main-mapped.csv" "$BUILD_DIR/patch/main.snr"
-    run_cmd "$BIN_DIR/fnt4-tool" rebuild "$RAW_DIR/data/newrodin.fnt" "$BUILD_DIR/patch/newrodin.fnt" "$FONT_PATH" -s 102 --letter-spacing 2 -c "$BUILD_DIR/mapping.toml"
+    exec bin/shin-tl.exe rom create --rom-version higurashi-sui build/patch-sui build/repatch/PCSG00517/patch.rom
 
-    patch_exefs
-
-    run_cmd "$BIN_DIR/shin-tl" rom create --rom-version higurashi-hou-v2 "$BUILD_DIR/patch" "$BUILD_DIR/romfs/patch.rom"
-
-    log "Build Complete!"
-    read -p "Press ENTER to exit..."
+    log "Patching eboot..."
+    exec bin/vita-unmake-fself.exe build/repatch/PCSG00517/eboot.bin
+    python shin-tools/patch-tool.py -b build/repatch/PCSG00517/eboot.bin.elf -c eboot-utf-8.csv -e utf-8
+    python shin-tools/patch-tool.py -b build/repatch/PCSG00517/eboot.bin.elf -c build/eboot-utf-16le-mapped.csv -e utf-16le
+    exec bin/vita-make-fself.exe build/repatch/PCSG00517/eboot.bin.elf build/repatch/PCSG00517/eboot.bin
+    printf '\x05\x02\xce\x1c\x10\x00\x00\x21' | dd of=build/repatch/PCSG00517/eboot.bin bs=1 seek=128 count=8 conv=notrunc
+    rm -f build/repatch/PCSG00517/eboot.bin.elf
+    
+    log "Complete!"
+    log "Saved to: build/repatch/"
 }
 
-main "$@"
+case "${1:-}" in
+    hou) pack_hou ;;
+    sui) pack_sui ;;
+    *) echo "Usage: $0 [hou|sui]"; exit 0 ;;
+esac
+
+read -p "Press ENTER to exit..."

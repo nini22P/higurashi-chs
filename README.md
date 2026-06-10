@@ -1,26 +1,35 @@
-# Higurashi Hou Chinese Translation Project
+# Higurashi no Naku Koro ni Hou / Sui Simplified Chinese Translation Project
 
 [中文文档](README_zh.md)
 
-This is the Chinese translation project for Higurashi no Naku Koro ni Hou.
+This is the Simplified Chinese translation project for Higurashi no Naku Koro ni Hou / Sui.
+The translation text is based on the official translation and community patch translation.
 
-The translation text is based on the official translation and community patch translation. It supports the game version 2.0.2.
+## How to Pack
 
-## Quick start
+### Hou (NS)
 
-### How to pack
+1. Create the `raw/hou` folder.
 
-1. Create a `raw` folder and place the game files for version 2.0.2 inside it, including `data.rom`, `patch.rom`, and `append.rom`.
+2. Place the version 2.0.2 game files into the folder, including `data.rom`, `patch.rom`, and `append.rom`.
 
-2. Run `sh pack.sh` in the terminal.
+3. Run `sh pack.sh hou` in the terminal.
 
-## Current status
+### Sui (PSV)
 
-- Script translation: In progress
-- Proofreading: Not started
-- Image assets: Not started
+1. Create the `raw/sui` folder.
 
-## Notes
+2. Place `data.rom` into the folder.
+
+3. Run `sh pack.sh sui` in the terminal.
+
+## Current Progress
+
+- Script translation: In progress.
+- Proofreading: Not started.
+- Image translation: Not started.
+
+## Translation Log
 
 - 2026-04-19: Project started.
 
