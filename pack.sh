@@ -57,6 +57,9 @@ pack_hou() {
     exec bin/fnt4-tool.exe rebuild raw/hou/data/newrodin.fnt build/patch-hou/newrodin.fnt assets/font/ResourceHanRoundedCN-Medium.ttf -s 144 --letter-spacing 2 -c build/mapping-hou.toml
     exec bin/shin-tl.exe snr rewrite higurashi-hou-v2 raw/hou/patch/main.snr build/main-hou-mapped.csv build/patch-hou/main.snr
 
+    # python shin-tools/txa-tool.py pack -i assets/txa-hou -o build/patch-hou -v 2
+    # python shin-tools/pic-tool.py pack -i assets/pic-hou -o build/patch-hou/picture -v 2
+
     exec bin/shin-tl.exe rom create --rom-version higurashi-hou-v2 build/patch-hou build/romfs/patch.rom
 
     log "Patching exefs..."
@@ -92,6 +95,9 @@ pack_sui() {
 
     exec bin/fnt4-tool.exe rebuild raw/sui/data/gothic.fnt build/patch-sui/gothic.fnt assets/font/ResourceHanRoundedCN-Medium.ttf -s 40 --letter-spacing 2 -c build/mapping-sui.toml
     exec bin/shin-tl.exe snr rewrite higurashi-sui raw/sui/data/main.snr build/main-sui-mapped.csv build/patch-sui/main.snr
+
+    # python shin-tools/txa-tool.py pack -i assets/txa-sui -o build/patch-sui -v 0
+    # python shin-tools/pic-tool.py pack -i assets/pic-sui -o build/patch-sui/picture -v 0
 
     exec bin/shin-tl.exe rom create --rom-version higurashi-sui build/patch-sui build/repatch/PCSG00517/patch.rom
 

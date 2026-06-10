@@ -3,4 +3,5 @@ build/
 raw/
 extract/
 translate_cn/
-txa/
+txa*
+pic*
