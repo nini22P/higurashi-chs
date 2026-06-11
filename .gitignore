@@ -3,5 +3,5 @@ build/
 raw/
 extract/
 translate_cn/
-txa*
-pic*
+assets/txa-*
+assets/pic-*
