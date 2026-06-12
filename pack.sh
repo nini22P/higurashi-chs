@@ -52,6 +52,7 @@ pack_hou() {
     fi
 
     python shin-tools/script-tool.py import --main "build/main-hou.csv," --text higurashi-hou.csv --format "escaped,unescaped" --suffix "hou,sui"
+    python tools/split-binary-csv.py binary.csv hou -o build/exefs.csv
     python shin-tools/mapping-tool.py mapping-config-hou.json
 
     exec bin/fnt4-tool.exe rebuild raw/hou/data/newrodin.fnt build/patch-hou/newrodin.fnt assets/font/ResourceHanRoundedCN-Medium.ttf -s 144 --letter-spacing 2 -c build/mapping-hou.toml
@@ -91,6 +92,7 @@ pack_sui() {
     fi
 
     python shin-tools/script-tool.py import --main ",build/main-sui.csv" --text higurashi-hou.csv --format "escaped,unescaped" --suffix "hou,sui"
+    python tools/split-binary-csv.py binary.csv sui -o build/eboot-utf-16le.csv
     python shin-tools/mapping-tool.py mapping-config-sui.json
 
     exec bin/fnt4-tool.exe rebuild raw/sui/data/gothic.fnt build/patch-sui/gothic.fnt assets/font/ResourceHanRoundedCN-Medium.ttf -s 40 --letter-spacing 2 -c build/mapping-sui.toml
