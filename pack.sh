@@ -55,7 +55,7 @@ pack_hou() {
     python tools/split-binary-csv.py binary.csv hou -o build/exefs.csv
     python shin-tools/mapping-tool.py mapping-config-hou.json
 
-    exec bin/fnt4-tool.exe rebuild raw/hou/data/newrodin.fnt build/patch-hou/newrodin.fnt assets/font/ResourceHanRoundedCN-Medium.ttf -s 144 --letter-spacing 2 -c build/mapping-hou.toml
+    exec bin/fnt4-tool.exe rebuild raw/hou/data/newrodin.fnt build/patch-hou/newrodin.fnt assets/font/NotoSansCJKsc-Medium.otf -s 144 --letter-spacing 2 -c build/mapping-hou.toml
     exec bin/shin-tl.exe snr rewrite higurashi-hou-v2 raw/hou/patch/main.snr build/main-hou-mapped.csv build/patch-hou/main.snr
 
     # ./pack-txa.sh hou
@@ -95,7 +95,7 @@ pack_sui() {
     python tools/split-binary-csv.py binary.csv sui -o build/eboot-utf-16le.csv
     python shin-tools/mapping-tool.py mapping-config-sui.json
 
-    exec bin/fnt4-tool.exe rebuild raw/sui/data/gothic.fnt build/patch-sui/gothic.fnt assets/font/ResourceHanRoundedCN-Medium.ttf -s 40 --letter-spacing 2 -c build/mapping-sui.toml
+    exec bin/fnt4-tool.exe rebuild raw/sui/data/gothic.fnt build/patch-sui/gothic.fnt assets/font/NotoSansCJKsc-Medium.otf -s 40 --letter-spacing 2 -c build/mapping-sui.toml
     exec bin/shin-tl.exe snr rewrite higurashi-sui raw/sui/data/main.snr build/main-sui-mapped.csv build/patch-sui/main.snr
 
     # ./pack-txa.sh sui
