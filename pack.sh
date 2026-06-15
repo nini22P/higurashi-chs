@@ -69,7 +69,7 @@ pack_hou() {
     cp -f "assets/exefs/main.elf" "build/exefs/main.elf"
     # exec bin/nx2elf.exe build/exefs/main
     python shin-tools/patch-tool.py -b build/exefs/main.elf -c build/exefs-mapped.csv
-    python tools/exefs-reloc-tool.py -b build/exefs/main.elf -c build/exefs-mapped.csv -e utf-8
+    python tools/exefs-reloc-tool.py -b build/exefs/main.elf -c build/exefs-mapped.csv
     exec bin/elf2nso.exe build/exefs/main.elf build/exefs/main
     rm -f build/exefs/main.elf
 

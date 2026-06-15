@@ -29,10 +29,10 @@ def dec_adrp_imm(buf: bytearray) -> int:
 
 
 class Relocator:
-    def __init__(self, elf, csv_path: str, encoding: str):
+    def __init__(self, elf, csv_path: str):
         self.elf = elf
         self.csv_path = csv_path
-        self.encoding = encoding
+        self.encoding = "utf-8"
         def _find_section(name):
             sec = next((s for s in self.elf.sections if s.name == name), None)
             if sec is None:
@@ -234,7 +234,6 @@ def main():
     parser = argparse.ArgumentParser(description="ELF String Relocation Tool (Switch ARM64)")
     parser.add_argument("-b", "--bin", required=True)
     parser.add_argument("-c", "--csv", required=True)
-    parser.add_argument("-e", "--encoding", default="utf-8")
     args = parser.parse_args()
 
     if not os.path.exists(args.bin) or not os.path.exists(args.csv):
@@ -252,9 +251,8 @@ def main():
 
     print(f"Arch:  ARM64")
     print(f"CSV:   {args.csv}")
-    print(f"Enc:   {args.encoding}")
 
-    r = Relocator(elf, args.csv, args.encoding)
+    r = Relocator(elf, args.csv)
     ok = r.run()
     if ok:
         print(f"\nWriting: {args.bin}")
