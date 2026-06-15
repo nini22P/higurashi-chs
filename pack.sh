@@ -66,8 +66,8 @@ pack_hou() {
 
     log "Patching exefs..."
     mkdir -p "build/exefs"
-    cp -f "assets/exefs/main" "build/exefs/main"
-    exec bin/nx2elf.exe build/exefs/main
+    cp -f "assets/exefs/main.elf" "build/exefs/main.elf"
+    # exec bin/nx2elf.exe build/exefs/main
     python shin-tools/patch-tool.py -b build/exefs/main.elf -c build/exefs-mapped.csv
     python tools/exefs-reloc-tool.py -b build/exefs/main.elf -c build/exefs-mapped.csv -e utf-8
     exec bin/elf2nso.exe build/exefs/main.elf build/exefs/main
@@ -106,7 +106,7 @@ pack_sui() {
     exec bin/shin-tl.exe rom create --rom-version higurashi-sui build/patch-sui build/repatch/PCSG00517/patch.rom
 
     log "Patching eboot..."
-    exec bin/vita-unmake-fself.exe build/repatch/PCSG00517/eboot.bin
+    # exec bin/vita-unmake-fself.exe build/repatch/PCSG00517/eboot.bin
     python shin-tools/patch-tool.py -b build/repatch/PCSG00517/eboot.bin.elf -c eboot-utf-8.csv -e utf-8
     python shin-tools/patch-tool.py -b build/repatch/PCSG00517/eboot.bin.elf -c build/eboot-utf-16le-mapped.csv -e utf-16le
     # currently not working

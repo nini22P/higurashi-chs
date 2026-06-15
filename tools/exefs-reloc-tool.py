@@ -83,7 +83,7 @@ class Relocator:
                 res.append((off, add))
         return res
 
-    def find_adrp_refs(self, text_bytes: bytes, text_va: int, str_va: int) -> List[Tuple[int, int, str, int, int]]:
+    def find_adrp_refs(self, text_bytes: bytes, text_va: int, str_va: int) -> List[Tuple[int, int, str, int, int, bool]]:
         page = str_va & ~0xFFF
         off = str_va & 0xFFF
         refs = []
@@ -91,6 +91,23 @@ class Relocator:
         md = Cs(CS_ARCH_ARM64, CS_MODE_ARM)
         md.detail = True
         md.skipdata = True
+
+        def _reg_uses(window_va, window_bytes, a_addr, rd):
+            cnt = 0
+            for ji in md.disasm(window_bytes, window_va):
+                if ji.address <= a_addr or ji.address > a_addr + 32:
+                    continue
+                uses_rd = False
+                for op in ji.operands:
+                    if op.type == ARM64_OP_REG and op.value.reg - ARM64_REG_X0 == rd:
+                        uses_rd = True
+                        break
+                    if op.type == ARM64_OP_MEM and op.value.mem.base - ARM64_REG_X0 == rd:
+                        uses_rd = True
+                        break
+                if uses_rd:
+                    cnt += 1
+            return cnt
 
         adrps = []
         for insn in md.disasm(text_bytes, text_va):
@@ -108,6 +125,7 @@ class Relocator:
                 continue
             win_off = a_addr - text_va - 4
             window = text_bytes[win_off: win_off + 40]
+            match = None
             for ji in md.disasm(window, a_addr - 4):
                 if ji.address <= a_addr or ji.address > a_addr + 32:
                     continue
@@ -116,8 +134,14 @@ class Relocator:
                     if (o0.type == ARM64_OP_REG and o1.type == ARM64_OP_REG
                             and o1.value.reg - ARM64_REG_X0 == rd
                             and o2.type == ARM64_OP_IMM and o2.value.imm == off):
-                        refs.append((a_addr, ji.address, "add", o0.value.reg - ARM64_REG_X0, rd))
+                        match = ji
                         break
+            if match is None:
+                continue
+            uses = _reg_uses(a_addr - 4, window, a_addr, rd)
+            safe = uses <= 1
+            o0 = match.operands[0]
+            refs.append((a_addr, match.address, "add", o0.value.reg - ARM64_REG_X0, rd, safe))
         return refs
 
     def patch_ref(self, adrp_addr: int, new_va: int, add_addr: int, rd: int, rn: int):
@@ -153,7 +177,11 @@ class Relocator:
             if rr:
                 print(f"    RELA entries: {len(rr)}")
             if ar:
-                print(f"    ADRP refs:    {len(ar)}")
+                safe = sum(1 for r in ar if r[5])
+                if safe != len(ar):
+                    print(f"    ADRP refs:    {len(ar)} ({safe} safe, {len(ar) - safe} shared/skipped)")
+                else:
+                    print(f"    ADRP refs:    {len(ar)}")
             if not rr and not ar:
                 print("    WARNING: No references found, skipping")
                 continue
@@ -186,9 +214,17 @@ class Relocator:
         for p in plan:
             for r_off, _ in p["rela_refs"]:
                 self.patch_rela(r_off, p["new_va"])
+            unsafe = 0
             for ref in p["adrp_refs"]:
-                self.patch_ref(ref[0], p["new_va"], ref[1], ref[3], ref[4])
-            print(f"    [0x{p['orig_va']:08x}] -> VA 0x{p['new_va']:x}")
+                a_addr, ji_addr, _, rd, rn, safe = ref
+                if safe:
+                    self.patch_ref(a_addr, p["new_va"], ji_addr, rd, rn)
+                else:
+                    unsafe += 1
+            label = f"    [0x{p['orig_va']:08x}] -> VA 0x{p['new_va']:x}"
+            if unsafe:
+                label += f"  (skipped {unsafe} shared ADRP ref(s))"
+            print(label)
 
         return True
 
