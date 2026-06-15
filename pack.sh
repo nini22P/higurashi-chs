@@ -3,6 +3,7 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 pip install --user -r shin-tools/requirements.txt
+pip install --user -r tools/requirements.txt
 
 log() { echo "[*] $*"; }
 err() { echo "[!] $*" >&2; exit 1; }
@@ -68,6 +69,7 @@ pack_hou() {
     cp -f "assets/exefs/main" "build/exefs/main"
     exec bin/nx2elf.exe build/exefs/main
     python shin-tools/patch-tool.py -b build/exefs/main.elf -c build/exefs-mapped.csv
+    python tools/exefs-reloc-tool.py -b build/exefs/main.elf -c build/exefs-mapped.csv -e utf-8
     exec bin/elf2nso.exe build/exefs/main.elf build/exefs/main
     rm -f build/exefs/main.elf
 
@@ -107,6 +109,8 @@ pack_sui() {
     exec bin/vita-unmake-fself.exe build/repatch/PCSG00517/eboot.bin
     python shin-tools/patch-tool.py -b build/repatch/PCSG00517/eboot.bin.elf -c eboot-utf-8.csv -e utf-8
     python shin-tools/patch-tool.py -b build/repatch/PCSG00517/eboot.bin.elf -c build/eboot-utf-16le-mapped.csv -e utf-16le
+    # currently not working
+    # python tools/eboot-reloc-tool.py -b build/repatch/PCSG00517/eboot.bin.elf -c build/eboot-utf-16le-mapped.csv
     exec bin/vita-make-fself.exe build/repatch/PCSG00517/eboot.bin.elf build/repatch/PCSG00517/eboot.bin
     printf '\x05\x02\xce\x1c\x10\x00\x00\x21' | dd of=build/repatch/PCSG00517/eboot.bin bs=1 seek=128 count=8 conv=notrunc
     rm -f build/repatch/PCSG00517/eboot.bin.elf

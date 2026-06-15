@@ -1,0 +1,2 @@
+lief>=0.13
+capstone>=5.0
