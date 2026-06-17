@@ -21,6 +21,16 @@
             "translation_cols": [
                 "translation"
             ]
+        },
+        {
+            "input": "build/chart-sui.csv",
+            "output": "build/chart-sui-mapped.csv",
+            "original_cols": [
+                "text"
+            ],
+            "translation_cols": [
+                "translation"
+            ]
         }
     ]
 }

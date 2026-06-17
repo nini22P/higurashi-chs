@@ -21,6 +21,16 @@
             "translation_cols": [
                 "translation"
             ]
+        },
+        {
+            "input": "build/chart-hou.csv",
+            "output": "build/chart-hou-mapped.csv",
+            "original_cols": [
+                "text"
+            ],
+            "translation_cols": [
+                "translation"
+            ]
         }
     ]
 }

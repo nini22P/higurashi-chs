@@ -17,7 +17,7 @@ def main():
     args = parser.parse_args()
 
     offset_col = f'offset_{args.platform}'
-    length_col = f'length_{args.platform}'
+    length_col_platform = f'length_{args.platform}'
 
     out_dir = os.path.dirname(args.output)
     if out_dir:
@@ -28,12 +28,17 @@ def main():
         reader = csv.DictReader(f)
         for row in reader:
             offsets = row.get(offset_col, '').strip()
-            length = row.get(length_col, '').strip()
+            if not offsets:
+                continue
+
+            length = row.get(length_col_platform, '').strip()
+            if not length:
+                length = row.get('length', '').strip()
+            if not length:
+                continue
+
             text = row.get('text', '')
             translation = row.get('translation', '').strip()
-
-            if not offsets or not length:
-                continue
 
             for off in offsets.split('|'):
                 off = off.strip()

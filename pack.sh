@@ -54,10 +54,12 @@ pack_hou() {
 
     python shin-tools/script-tool.py import --main "build/main-hou.csv," --text higurashi-hou.csv --format "escaped,unescaped" --suffix "hou,sui"
     python tools/split-binary-csv.py binary.csv hou -o build/exefs.csv
+    python tools/split-binary-csv.py chart.csv hou -o build/chart-hou.csv
     python shin-tools/mapping-tool.py mapping-config-hou.json
 
     exec bin/fnt4-tool.exe rebuild raw/hou/data/newrodin.fnt build/patch-hou/newrodin.fnt assets/font/NotoSansCJKsc-Medium.otf -s 144 --letter-spacing 2 -c build/mapping-hou.toml
     exec bin/shin-tl.exe snr rewrite higurashi-hou-v2 raw/hou/patch/main.snr build/main-hou-mapped.csv build/patch-hou/main.snr
+    python shin-tools/patch-tool.py -b build/patch-hou/main.snr -c build/chart-hou-mapped.csv -e cp932
 
     # ./pack-txa.sh hou
     # python shin-tools/pic-tool.py pack -i assets/pic-hou -o build/patch-hou/picture -v 2
@@ -95,10 +97,12 @@ pack_sui() {
 
     python shin-tools/script-tool.py import --main ",build/main-sui.csv" --text higurashi-hou.csv --format "escaped,unescaped" --suffix "hou,sui"
     python tools/split-binary-csv.py binary.csv sui -o build/eboot-utf-16le.csv
+    python tools/split-binary-csv.py chart.csv sui -o build/chart-sui.csv
     python shin-tools/mapping-tool.py mapping-config-sui.json
 
     exec bin/fnt4-tool.exe rebuild raw/sui/data/gothic.fnt build/patch-sui/gothic.fnt assets/font/NotoSansCJKsc-Medium.otf -s 40 --letter-spacing 2 -c build/mapping-sui.toml
     exec bin/shin-tl.exe snr rewrite higurashi-sui raw/sui/data/main.snr build/main-sui-mapped.csv build/patch-sui/main.snr
+    python shin-tools/patch-tool.py -b build/patch-sui/main.snr -c build/chart-sui-mapped.csv -e cp932
 
     # ./pack-txa.sh sui
     # python shin-tools/pic-tool.py pack -i assets/pic-sui -o build/patch-sui/picture -v 0
