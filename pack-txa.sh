@@ -93,6 +93,7 @@ echo "[*] TXA to repack (${#repack_list[@]}): ${repack_list[*]}"
 
 for txa in "${repack_list[@]}"; do
   src=$(find_src "$txa")
+  [[ -d "$BUILD_DIR/$txa" ]] && continue
   echo "[v${VERSION}] Unpacking ${txa}.txa"
   python shin-tools/txa-tool.py unpack -i "$src" -o "$BUILD_DIR/$txa"
 done
