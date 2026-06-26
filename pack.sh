@@ -124,9 +124,16 @@ pack_sui() {
 }
 
 case "${1:-}" in
+    hou|sui) ;;
+    *) echo "Usage: $0 [hou|sui]"; exit 0 ;;
+esac
+
+log "Drawing TIPS title images..."
+python tools/draw-tips-title.py
+
+case "${1:-}" in
     hou) pack_hou ;;
     sui) pack_sui ;;
-    *) echo "Usage: $0 [hou|sui]"; exit 0 ;;
 esac
 
 read -p "Press ENTER to exit..."
