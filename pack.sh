@@ -129,7 +129,7 @@ case "${1:-}" in
 esac
 
 log "Drawing TIPS title images..."
-python tools/draw-tips-title.py
+python tools/draw-title.py
 
 case "${1:-}" in
     hou) pack_hou ;;
