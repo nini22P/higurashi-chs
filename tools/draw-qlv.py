@@ -64,10 +64,6 @@ def draw(img, translation, orig_text, font_path):
     bands = text_bands(img)
     qy1, qy2 = bands[0]
     band_h = qy2 - qy1 + 1
-
-    qq = [b for b in bands if b[0] < 99]
-    orig_q_h = (qq[-1][1] - qq[0][0] + 1) if len(qq) > 1 else band_h
-
     base_sz = max(12, int(band_h * FONT_SCALE))
 
     def erase_and_draw(text, y, max_sz, max_w, ref_h):
@@ -84,19 +80,26 @@ def draw(img, translation, orig_text, font_path):
         draw_text(img, text, y, max_sz, max_w, font_path)
 
     if "\n\n" in orig_text:
+        orig_parts = orig_text.split("\n\n")
         parts = translation.split("\n\n")
+
+        part1_lines = len([l for l in orig_parts[0].split("\n") if l.strip()])
+        bands1 = bands[:min(len(bands), part1_lines)]
+        orig_q_h = bands1[-1][1] - bands1[0][0] + 1
         erase_and_draw(parts[0].strip(), qy1, base_sz, W, orig_q_h)
 
         if len(parts) > 1:
-            large = [b for b in bands if b[0] >= 220]
-            if not large:
-                large = [b for b in bands[1:] if b[1] - b[0] + 1 > 160]
-            if large:
-                ly1, ly2 = large[0]
-                large_h = ly2 - ly1 + 1
+            part2_lines = len([l for l in orig_parts[1].split("\n") if l.strip()])
+            bands2 = bands[part1_lines:part1_lines + part2_lines]
+            if bands2:
+                ly1, ly2 = bands2[0][0], bands2[-1][1]
+                band_h2 = ly2 - ly1 + 1
                 ImageDraw.Draw(img).rectangle([(0, ly1), (W, ly2)], fill=BG)
-                draw_text(img, parts[1].strip(), ly1, max(12, int(large_h * FONT_SCALE)), W, font_path, outline=6)
+                draw_text(img, parts[1].strip(), ly1, max(12, int(band_h2 * FONT_SCALE)), W, font_path, outline=6)
     else:
+        orig_lines = len([l for l in orig_text.split("\n") if l.strip()])
+        tgt_bands = bands[:min(len(bands), orig_lines)]
+        orig_q_h = tgt_bands[-1][1] - tgt_bands[0][0] + 1
         erase_and_draw(translation, qy1, base_sz, W, orig_q_h)
 
     return img
