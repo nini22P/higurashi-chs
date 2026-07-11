@@ -23,7 +23,7 @@ with open('$CSV', encoding='utf-8') as f:
   png="$HOU_IN/$qid/$qid.png"
   if [ ! -f "$png" ]; then
     mkdir -p "$HOU_IN/$qid"
-    python shin-tools/txa-tool.py unpack -i "$TXA_SRC/$qid.txa" -o "$HOU_IN/$qid"
+    python shin-tools/txa_tool.py unpack -i "$TXA_SRC/$qid.txa" -o "$HOU_IN/$qid"
   fi
 done
 

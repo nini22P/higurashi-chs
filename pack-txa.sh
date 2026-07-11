@@ -95,13 +95,13 @@ for txa in "${repack_list[@]}"; do
   src=$(find_src "$txa")
   [[ -d "$BUILD_DIR/$txa" ]] && continue
   echo "[v${VERSION}] Unpacking ${txa}.txa"
-  python shin-tools/txa-tool.py unpack -i "$src" -o "$BUILD_DIR/$txa"
+  python shin-tools/txa_tool.py unpack -i "$src" -o "$BUILD_DIR/$txa"
 done
 
 echo "[*] Coping files..."
 cp -r "$SRC_DIR/." "$BUILD_DIR/"
 
 echo "[*] Packing TXA..."
-python shin-tools/txa-tool.py pack -i "$BUILD_DIR" -o "$OUT_DIR" -v "$VERSION"
+python shin-tools/txa_tool.py pack -i "$BUILD_DIR" -o "$OUT_DIR" -v "$VERSION"
 
 echo "[*] Done. Output saved to $OUT_DIR/"
