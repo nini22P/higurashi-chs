@@ -23,12 +23,6 @@ The translation text is based on the official translation and community patch tr
 
 3. Run `sh pack.sh sui` in the terminal.
 
-## Current Progress
-
-- Script translation: In progress.
-- Proofreading: Not started.
-- Image translation: Not started.
-
 ## Translation Log
 
 - 2026-04-19: Project started.
