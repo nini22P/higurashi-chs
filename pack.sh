@@ -22,27 +22,10 @@ exec() {
     fi
 }
 
-extract_raw_roms() {
-    local game=$1
-    for name in data patch append; do
-        local target="raw/$game/$name"
-        local rom="raw/$game/$name.rom"
-        if [ -d "$target" ]; then
-            continue
-        fi
-        if [ -f "$rom" ]; then
-            log "Extracting $rom ..."
-            exec bin/shin-tl.exe rom extract "$rom" "$target"
-        else
-            log "Missing $rom, skipping extraction."
-        fi
-    done
-}
-
 pack_hou() {
     mkdir -p "build/romfs" "bin"
 
-    extract_raw_roms "hou"
+    ./extract-rom.sh hou
 
     rm -rf "build/patch-hou"
     cp -r "raw/hou/patch" "build/patch-hou"
@@ -62,7 +45,7 @@ pack_hou() {
     python shin-tools/patch_tool.py -b build/patch-hou/main.snr -c build/chart-hou-mapped.csv -e cp932
 
     ./pack-txa.sh hou
-    # python shin-tools/pic_tool.py pack -i assets/pic-hou -o build/patch-hou/picture -v 2
+    # python shin-tools/pic_tool.py pack -i assets/pic-hou -o build/patch-hou/picture -v 2 --orig raw/hou/data/picture,raw/hou/append/picture,raw/hou/patch/picture
 
     exec bin/shin-tl.exe rom create --rom-version higurashi-hou-v2 build/patch-hou build/romfs/patch.rom
 
@@ -85,7 +68,7 @@ pack_sui() {
     mkdir -p "build" "bin"
     cp -r "assets/repatch" "build"
 
-    extract_raw_roms "sui"
+    ./extract-rom.sh sui
 
     rm -rf "build/patch-sui"
     mkdir -p "build/patch-sui"
@@ -105,7 +88,7 @@ pack_sui() {
     python shin-tools/patch_tool.py -b build/patch-sui/main.snr -c build/chart-sui-mapped.csv -e cp932
 
     ./pack-txa.sh sui
-    # python shin-tools/pic_tool.py pack -i assets/pic-sui -o build/patch-sui/picture -v 0
+    # python shin-tools/pic_tool.py pack -i assets/pic-sui -o build/patch-sui/picture -v 0 --orig raw/sui/data/picture
 
     exec bin/shin-tl.exe rom create --rom-version higurashi-sui build/patch-sui build/repatch/PCSG00517/patch.rom
 
