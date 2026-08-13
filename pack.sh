@@ -45,7 +45,7 @@ pack_hou() {
     python shin-tools/patch_tool.py -b build/patch-hou/main.snr -c build/chart-hou-mapped.csv -e cp932
 
     ./pack-txa.sh hou
-    # python shin-tools/pic_tool.py pack -i assets/pic-hou -o build/patch-hou/picture -v 2 --orig raw/hou/data/picture,raw/hou/append/picture,raw/hou/patch/picture
+    python shin-tools/pic_tool.py pack -i assets/pic-hou -o build/patch-hou/picture -v 2 --orig raw/hou/data/picture,raw/hou/append/picture,raw/hou/patch/picture
 
     exec bin/shin-tl.exe rom create --rom-version higurashi-hou-v2 build/patch-hou build/romfs/patch.rom
 
@@ -88,7 +88,7 @@ pack_sui() {
     python shin-tools/patch_tool.py -b build/patch-sui/main.snr -c build/chart-sui-mapped.csv -e cp932
 
     ./pack-txa.sh sui
-    # python shin-tools/pic_tool.py pack -i assets/pic-sui -o build/patch-sui/picture -v 0 --orig raw/sui/data/picture
+    python shin-tools/pic_tool.py pack -i assets/pic-sui -o build/patch-sui/picture -v 0 --orig raw/sui/data/picture
 
     exec bin/shin-tl.exe rom create --rom-version higurashi-sui build/patch-sui build/repatch/PCSG00517/patch.rom
 
