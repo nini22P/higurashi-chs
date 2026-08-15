@@ -88,6 +88,7 @@ pack_sui() {
     python shin-tools/patch_tool.py -b build/patch-sui/main.snr -c build/chart-sui-mapped.csv -e cp932
 
     ./pack-txa.sh sui
+    python tools/pic-hou-to-sui.py
     python shin-tools/pic_tool.py pack -i assets/pic-sui -o build/patch-sui/picture -v 0 --orig raw/sui/data/picture
 
     exec bin/shin-tl.exe rom create --rom-version higurashi-sui build/patch-sui build/repatch/PCSG00517/patch.rom
