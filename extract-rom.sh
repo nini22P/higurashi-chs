@@ -3,6 +3,21 @@ set -euo pipefail
 
 cd "$(dirname "$0")"
 
+log() { echo "[*] $*"; }
+exec() {
+    local cmd=$1
+    shift
+    if [ ! -f "$cmd" ] && [ -f "${cmd}.exe" ]; then
+        cmd="${cmd}.exe"
+    fi
+    echo "+ $cmd $*"
+    if [[ "$cmd" == *.exe ]] && command -v wine &>/dev/null; then
+        wine "$cmd" "$@"
+    else
+        "$cmd" "$@"
+    fi
+}
+
 extract_rom() {
     local game=$1
     for name in data patch append; do

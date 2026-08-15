@@ -112,6 +112,8 @@ case "${1:-}" in
     *) echo "Usage: $0 [hou|sui]"; exit 0 ;;
 esac
 
+find assets -name "desktop.ini" -delete
+
 log "Drawing TIPS title images..."
 python tools/draw-title.py
 
