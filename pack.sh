@@ -117,6 +117,9 @@ find assets -name "desktop.ini" -delete
 log "Drawing TIPS title images..."
 python tools/draw-title.py
 
+log "Drawing QLV images..."
+./draw-qlv.sh
+
 case "${1:-}" in
     hou) pack_hou ;;
     sui) pack_sui ;;

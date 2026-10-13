@@ -87,13 +87,20 @@ if ((${#repack_list[@]} == 0)); then
   exit 0
 fi
 
-echo "[*] TXA to repack (${#repack_list[@]}): ${repack_list[*]}"
+# echo "[*] TXA to unpack (${#repack_list[@]}): ${repack_list[*]}"
 
 # rm -rf "$BUILD_DIR"
 
+# 提前复制qlv的 index.txt，防止解包qlv导致缓慢
+while IFS= read -r -d '' idx; do
+  rel="${idx#"$SRC_DIR"/quiz/}"
+  mkdir -p "$BUILD_DIR/$(dirname "$rel")"
+  cp "$idx" "$BUILD_DIR/$rel"
+done < <(find "$SRC_DIR" -name index.txt -type f -print0)
+
 for txa in "${repack_list[@]}"; do
   src=$(find_src "$txa")
-  [[ -d "$BUILD_DIR/$txa" ]] && continue
+  [[ -f "$BUILD_DIR/$txa/index.txt" ]] && continue
   echo "[v${VERSION}] Unpacking ${txa}.txa"
   python shin-tools/txa_tool.py unpack -i "$src" -o "$BUILD_DIR/$txa"
 done

@@ -105,6 +105,11 @@ def draw(img, translation, orig_text, font_path):
     return img
 
 
+def save_index(d, qid):
+    with open(os.path.join(d, "index.txt"), "w", encoding="utf-8") as f:
+        f.write(f'000 -> 000 "{qid}"\n')
+
+
 def main():
     p = argparse.ArgumentParser(description="Draw translation onto quiz images.")
     p.add_argument("--font", required=True)
@@ -143,6 +148,7 @@ def main():
         d = os.path.join(args.hou_out, qid)
         os.makedirs(d, exist_ok=True)
         img.save(os.path.join(d, qid + ".png"))
+        save_index(d, qid)
         ok_hou += 1
 
         if args.sui_out and qid[:4] in ("qlv0", "qlv1", "qlv2", "qlv3", "qlv4"):
@@ -152,6 +158,7 @@ def main():
             d = os.path.join(args.sui_out, qid)
             os.makedirs(d, exist_ok=True)
             canvas.save(os.path.join(d, qid + ".png"))
+            save_index(d, qid)
             ok_sui += 1
 
     print(f"done: hou={ok_hou}  sui={ok_sui}")
