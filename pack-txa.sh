@@ -93,7 +93,7 @@ fi
 
 # 提前复制qlv的 index.txt，防止解包qlv导致缓慢
 while IFS= read -r -d '' idx; do
-  rel="${idx#"$SRC_DIR"/quiz/}"
+  rel="${idx#"$SRC_DIR"/}"
   mkdir -p "$BUILD_DIR/$(dirname "$rel")"
   cp "$idx" "$BUILD_DIR/$rel"
 done < <(find "$SRC_DIR" -name index.txt -type f -print0)
