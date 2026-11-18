@@ -2,8 +2,8 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-FONT="assets/font/NotoSansCJKsc-Black.otf"
-CSV="qlv.csv"
+FONT="assets/fonts/NotoSansCJKsc-Black.otf"
+CSV="data/qlv.csv"
 TXA_SRC="raw/hou/data/quiz"
 HOU_IN="build/txa-hou-orig/quiz"
 HOU_OUT="assets/txa-hou/quiz"

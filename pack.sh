@@ -35,12 +35,12 @@ pack_hou() {
         exec bin/shin-tl.exe snr read higurashi-hou-v2 raw/hou/patch/main.snr build/main-hou.csv
     fi
 
-    python shin-tools/script_tool.py import --main "build/main-hou.csv," --text higurashi-hou.csv --format "escaped,unescaped" --suffix "hou,sui"
-    python tools/split-binary-csv.py binary.csv hou -o build/exefs.csv
-    python tools/split-binary-csv.py chart.csv hou -o build/chart-hou.csv
+    python shin-tools/script_tool.py import --main "build/main-hou.csv," --text data/higurashi-hou.csv --format "escaped,unescaped" --suffix "hou,sui"
+    python tools/split-binary-csv.py data/binary.csv hou -o build/exefs.csv
+    python tools/split-binary-csv.py data/chart.csv hou -o build/chart-hou.csv
     python shin-tools/mapping_tool.py mapping-config-hou.json
 
-    exec bin/fnt4-tool.exe rebuild raw/hou/data/newrodin.fnt build/patch-hou/newrodin.fnt assets/font/NotoSansCJKsc-Medium.otf -s 144 --letter-spacing 2 -c build/mapping-hou.toml
+    exec bin/fnt4-tool.exe rebuild raw/hou/data/newrodin.fnt build/patch-hou/newrodin.fnt assets/fonts/NotoSansCJKsc-Medium.otf -s 144 --letter-spacing 2 -c build/mapping-hou.toml
     exec bin/shin-tl.exe snr rewrite higurashi-hou-v2 raw/hou/patch/main.snr build/main-hou-mapped.csv build/patch-hou/main.snr
     python shin-tools/patch_tool.py -b build/patch-hou/main.snr -c build/chart-hou-mapped.csv -e cp932
 
@@ -78,12 +78,12 @@ pack_sui() {
         exec bin/shin-tl.exe snr read higurashi-sui raw/sui/data/main.snr build/main-sui.csv
     fi
 
-    python shin-tools/script_tool.py import --main ",build/main-sui.csv" --text higurashi-hou.csv --format "escaped,unescaped" --suffix "hou,sui"
-    python tools/split-binary-csv.py binary.csv sui -o build/eboot-utf-16le.csv
-    python tools/split-binary-csv.py chart.csv sui -o build/chart-sui.csv
+    python shin-tools/script_tool.py import --main ",build/main-sui.csv" --text data/higurashi-hou.csv --format "escaped,unescaped" --suffix "hou,sui"
+    python tools/split-binary-csv.py data/binary.csv sui -o build/eboot-utf-16le.csv
+    python tools/split-binary-csv.py data/chart.csv sui -o build/chart-sui.csv
     python shin-tools/mapping_tool.py mapping-config-sui.json
 
-    exec bin/fnt4-tool.exe rebuild raw/sui/data/gothic.fnt build/patch-sui/gothic.fnt assets/font/NotoSansCJKsc-Medium.otf -s 40 --letter-spacing 2 -c build/mapping-sui.toml
+    exec bin/fnt4-tool.exe rebuild raw/sui/data/gothic.fnt build/patch-sui/gothic.fnt assets/fonts/NotoSansCJKsc-Medium.otf -s 40 --letter-spacing 2 -c build/mapping-sui.toml
     exec bin/shin-tl.exe snr rewrite higurashi-sui raw/sui/data/main.snr build/main-sui-mapped.csv build/patch-sui/main.snr
     python shin-tools/patch_tool.py -b build/patch-sui/main.snr -c build/chart-sui-mapped.csv -e cp932
 
@@ -95,7 +95,7 @@ pack_sui() {
 
     log "Patching eboot..."
     # exec bin/vita-unmake-fself.exe build/repatch/PCSG00517/eboot.bin
-    python shin-tools/patch_tool.py -b build/repatch/PCSG00517/eboot.bin.elf -c eboot-utf-8.csv -e utf-8
+    python shin-tools/patch_tool.py -b build/repatch/PCSG00517/eboot.bin.elf -c data/eboot-utf-8.csv -e utf-8
     python shin-tools/patch_tool.py -b build/repatch/PCSG00517/eboot.bin.elf -c build/eboot-utf-16le-mapped.csv -e utf-16le
     # currently not working
     # python tools/eboot-reloc-tool.py -b build/repatch/PCSG00517/eboot.bin.elf -c build/eboot-utf-16le-mapped.csv

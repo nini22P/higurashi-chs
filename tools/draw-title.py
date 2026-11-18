@@ -21,12 +21,10 @@ PLAN = [
 ]
 
 PROFILES = {
-    "tipsget_hou":  {"font_path": "assets/font/NotoSansCJKsc-Medium.otf", "width": 528, "height": 2048, "bg": (71, 112, 76, 0),   "font_size": 52, "text_color": (255, 255, 255, 255), "stroke_width": 4, "stroke_color": (0, 0, 0, 255), "scale_x": 0.85, "offset_y": -1},
-    "tipsmode_hou": {"font_path": "assets/font/NotoSansCJKsc-Regular.otf", "width": 640, "height": 2048, "bg": (71, 112, 76, 0),   "font_size": 52, "text_color": (255, 255, 255, 255), "stroke_width": 5, "stroke_color": (0, 0, 0, 255), "scale_x": 0.85, "offset_y": -1},
-    "tipsget_sui":  {"font_path": "assets/font/NotoSansCJKsc-Medium.otf", "width": 264, "height": 1016, "bg": (0, 0, 0, 0),        "font_size": 24, "text_color": (255, 255, 255, 255), "stroke_width": 2, "stroke_color": (0, 0, 0, 255), "scale_x": 0.8, "offset_y": 0},
-    "tipsmode_sui": {"font_path": "assets/font/NotoSansCJKsc-Regular.otf", "width": 320, "height": 1064, "bg": (0, 0, 0, 0),        "font_size": 24, "text_color": (255, 255, 255, 255), "stroke_width": 2, "stroke_color": (0, 0, 0, 255), "scale_x": 0.8, "offset_y": 0},
-}
-
+    "tipsget_hou":  {"font_path": "assets/fonts/NotoSansCJKsc-Medium.otf", "width": 528, "height": 2048, "bg": (71, 112, 76, 0),   "font_size": 52, "text_color": (255, 255, 255, 255), "stroke_width": 4, "stroke_color": (0, 0, 0, 255), "scale_x": 0.85, "offset_y": -1},
+    "tipsmode_hou": {"font_path": "assets/fonts/NotoSansCJKsc-Regular.otf", "width": 640, "height": 2048, "bg": (71, 112, 76, 0),   "font_size": 52, "text_color": (255, 255, 255, 255), "stroke_width": 5, "stroke_color": (0, 0, 0, 255), "scale_x": 0.85, "offset_y": -1},
+    "tipsget_sui":  {"font_path": "assets/fonts/NotoSansCJKsc-Medium.otf", "width": 264, "height": 1016, "bg": (0, 0, 0, 0),        "font_size": 24, "text_color": (255, 255, 255, 255), "stroke_width": 2, "stroke_color": (0, 0, 0, 255), "scale_x": 0.8, "offset_y": 0},
+    "tipsmode_sui": {"font_path": "assets/fonts/NotoSansCJKsc-Regular.otf", "width": 320, "height": 1064, "bg": (0, 0, 0, 0),        "font_size": 极简主义，注重功能性和简洁性，反对过度装饰和复杂性。
 
 def slot_bands(h):
     return [(h * i // SLOTS, h * (i + 1) // SLOTS - 1) for i in range(SLOTS)]
